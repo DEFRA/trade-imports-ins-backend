@@ -13,10 +13,10 @@
   </parent>
 
   <groupId>uk.gov.defra.cdp</groupId>
-  <artifactId>cdp-java-backend-template</artifactId>
+  <artifactId>trade-imports-ins-backend</artifactId>
   <version>0.1.0</version>
-  <name>CDP Java Backend Template</name>
-  <description>CDP Java Backend Template - Spring Boot 3.5 with Java 25</description>
+  <name>Trade Imports Ins Backend</name>
+  <description>Trade Imports Ins Backend - Spring Boot 3.5 with Java 25</description>
 
   <properties>
     <java.version>25</java.version>

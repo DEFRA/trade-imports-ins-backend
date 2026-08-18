@@ -4,11 +4,11 @@ server:
 
 spring:
   application:
-    name: cdp-java-backend-template
+    name: trade-imports-ins-backend
   data:
     mongodb:
       uri: ${MONGO_URI:mongodb://localhost:27017/}
-      database: ${MONGO_DATABASE:cdp-java-backend-template}
+      database: ${MONGO_DATABASE:trade-imports-ins-backend}
       auto-index-creation: true
       read-preference: ${MONGO_READ_PREFERENCE:secondary}
       write-concern: ${MONGO_WRITE_CONCERN:majority}
@@ -41,16 +41,16 @@ aws:
   emf:
     enabled: ${AWS_EMF_ENABLED:true}
     environment: ${AWS_EMF_ENVIRONMENT:Local}
-    namespace: ${AWS_EMF_NAMESPACE:cdp-java-backend-template}
+    namespace: ${AWS_EMF_NAMESPACE:trade-imports-ins-backend}
     service:
-      name: ${AWS_EMF_SERVICE_NAME:cdp-java-backend-template}
+      name: ${AWS_EMF_SERVICE_NAME:trade-imports-ins-backend}
       type: ${AWS_EMF_SERVICE_TYPE:SpringBootApp}
 
 # Logging configuration
 logging:
   level:
     root: ${LOG_LEVEL:info}
-    uk.gov.defra.cdp.java: ${LOG_LEVEL:DEBUG}
+    uk.gov.defra.trade.imports.ins.backend: ${LOG_LEVEL:DEBUG}
     org.springframework: ${LOGGING_LEVEL_ORG_SPRINGFRAMEWORK:INFO}
     org.springframework.web: ${LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB:INFO}
     org.mongodb: ${LOGGING_LEVEL_ORG_MONGODB_DRIVER:WARN}

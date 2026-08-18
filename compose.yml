@@ -32,7 +32,7 @@ services:
 
   ################################################################################
 
-  cdp-java-backend-template:
+  trade-imports-ins-backend:
     build: ./
     ports:
       - '8085:8085'

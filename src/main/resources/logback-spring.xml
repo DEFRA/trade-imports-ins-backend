@@ -10,7 +10,7 @@
     <!-- Console appender with standard ECS JSON format (flat error.* fields) -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <!-- Filter out /health endpoint to reduce noise -->
-        <filter class="uk.gov.defra.cdp.java.filter.HealthCheckFilter"/>
+        <filter class="uk.gov.defra.trade.imports.ins.backend.filter.HealthCheckFilter"/>
 
         <encoder class="co.elastic.logging.logback.EcsEncoder">
             <serviceVersion>${service.version}</serviceVersion>
