@@ -1,0 +1,73 @@
+services:
+  # floci is a replacement for localstack. It emulates AWS resources (sqs, sns, s3 etc) for local development
+  # See: https://floci.io for more details
+  floci:
+    image: hectorvent/floci:latest-aws
+    ports:
+      - '4566:4566'
+    env_file:
+      - 'compose/aws.env'
+    environment:
+      FLOCI_DEFAULT_REGION: eu-west-2
+    volumes:
+      - ./compose/floci/start.d:/etc/floci/init/start.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 4566 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - cdp-tenant
+
+  mongodb:
+    image: mongo:7.0.28
+    networks:
+      - cdp-tenant
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodb-data:/data
+      - ./compose/mongo/10-init.js:/docker-entrypoint-initdb.d/10-init.js:ro
+
+  ################################################################################
+
+  cdp-java-backend-template:
+    build: ./
+    ports:
+      - '8085:8085'
+      - '5006:5005' # Java debug port
+    depends_on:
+      floci:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+    env_file:
+      - 'compose/aws.env'
+    environment:
+      PORT: 8085
+
+      MONGO_URI: mongodb://mongodb:27017
+
+      # AWS (via Floci) - endpoint must use Docker service name, not localhost
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_EMF_AGENT_ENDPOINT: http://floci:4566
+
+      LOG_LEVEL: DEBUG
+
+      # Activates application-local.yml
+      SPRING_PROFILES_ACTIVE: local
+
+      # Java Debug (optional - uncomment to enable remote debugging)
+      # JAVA_TOOL_OPTIONS: -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+    networks:
+      - cdp-tenant
+
+################################################################################
+
+volumes:
+  mongodb-data:
+
+networks:
+  cdp-tenant:
+    driver: bridge

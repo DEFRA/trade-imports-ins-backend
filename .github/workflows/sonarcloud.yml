@@ -1,0 +1,44 @@
+name: Run SonarCloud coverage scan
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build:
+    name: CDP SonarCloud coverage scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: 25
+          cache: maven
+
+      - name: Prepare Sonar cache directory
+        run: mkdir -p ~/.sonar/cache
+
+      - name: Cache Sonar Scanner
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Build, test, and Sonar analyze
+        if: github.actor != 'dependabot[bot]'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+        run: |
+          mvn -B -e clean verify sonar:sonar -Dsonar.token="${SONAR_TOKEN}" -Dsonar.host.url="${SONAR_HOST_URL}" -Dsonar.organization=defra -Dsonar.projectKey=DEFRA_cdp-java-backend-template -Dsonar.exclusions=**/src/test/** -Dsonar.coverage.exclusions=**/configuration/*Config.java,**/configuration/tls/*.java,**/exceptions/*.java,**/filter/*Filter.java
