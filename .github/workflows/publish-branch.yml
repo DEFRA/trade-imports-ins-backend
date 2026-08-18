@@ -1,0 +1,18 @@
+name: Publish Branch Image
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: read
+
+jobs:
+  publish:
+    uses: DEFRA/trade-imports-animals-workspace/.github/workflows/publish-branch.yml@main
+    with:
+      image-name: trade-imports-ins-backend
+    secrets: inherit
