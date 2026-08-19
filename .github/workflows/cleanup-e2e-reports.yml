@@ -1,0 +1,18 @@
+name: Cleanup E2E Reports
+
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    uses: DEFRA/trade-imports-animals-workspace/.github/workflows/cleanup-e2e-reports.yml@main
+    with:
+      head-ref: ${{ github.head_ref || '' }}
