@@ -38,6 +38,11 @@ cdp:
 # AWS configuration
 aws:
   region: ${AWS_REGION:eu-west-2}
+  sqs:
+    notification:
+      queue-url: ${NOTIFICATION_SQS_QUEUE_URL:}.fifo
+      wait-time-seconds: ${SQS_WAIT_TIME_SECONDS:10}
+      max-messages: ${SQS_MAX_MESSAGES:10}
   emf:
     enabled: ${AWS_EMF_ENABLED:true}
     environment: ${AWS_EMF_ENVIRONMENT:Local}
@@ -45,6 +50,12 @@ aws:
     service:
       name: ${AWS_EMF_SERVICE_NAME:trade-imports-ins-backend}
       type: ${AWS_EMF_SERVICE_TYPE:SpringBootApp}
+
+app:
+  aws:
+    endpoint-override: ${APP_AWS_ENDPOINT_OVERRIDE:}
+    access-key-id: ${APP_AWS_ACCESS_KEY_ID:}
+    secret-access-key: ${APP_AWS_SECRET_ACCESS_KEY:}
 
 # Logging configuration
 logging:

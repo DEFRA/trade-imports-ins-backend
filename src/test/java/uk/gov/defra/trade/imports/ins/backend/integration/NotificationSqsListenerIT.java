@@ -1,0 +1,152 @@
+package uk.gov.defra.trade.imports.ins.backend.integration;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+
+import java.time.Duration;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import uk.gov.defra.trade.imports.ins.backend.store.AggregatedNotification;
+import uk.gov.defra.trade.imports.ins.backend.store.AggregatedNotificationRepository;
+
+class NotificationSqsListenerIT extends IntegrationBase {
+
+    private static final String AGGREGATE_ID = "Imports.Notification.GBN-AG.GBN-AG-26-001";
+
+    @Autowired
+    private AggregatedNotificationRepository repository;
+
+    @BeforeEach
+    void setup() {
+        purgeQueue();
+        repository.deleteAll();
+    }
+
+    @Test
+    void notificationEdited_createsDocumentInMongo() {
+        sendToSqs(notificationEdited(AGGREGATE_ID, 1), AGGREGATE_ID);
+
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
+            Optional<AggregatedNotification> doc = repository.findById(AGGREGATE_ID);
+            assertThat(doc).isPresent();
+            assertThat(doc.get().getReferenceNumber()).isEqualTo("GBN-AG-26-001");
+            assertThat(doc.get().getStatus()).isEqualTo("DRAFT");
+            assertThat(doc.get().getOriginCountry()).isEqualTo("GB");
+            assertThat(doc.get().getCommodity()).isEqualTo("01059900");
+            assertThat(doc.get().getAggregateVersion()).isEqualTo(1L);
+        });
+    }
+
+    @Test
+    void deliveringSameEventTwice_isIdempotent() {
+        String body = notificationEdited(AGGREGATE_ID, 1);
+        sendToSqs(body, AGGREGATE_ID);
+
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
+            assertThat(repository.findById(AGGREGATE_ID)).isPresent());
+
+        sendToSqs(body, AGGREGATE_ID);
+
+        // Version guard means second delivery is a no-op
+        await().during(Duration.ofSeconds(5)).atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+            assertThat(repository.count()).isEqualTo(1L));
+    }
+
+    @Test
+    void lowerAggregateVersion_isIgnored_documentKeepsHigherVersion() {
+        sendToSqs(notificationEdited(AGGREGATE_ID, 5), AGGREGATE_ID);
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
+            assertThat(repository.findById(AGGREGATE_ID)).isPresent());
+
+        sendToSqs(notificationEdited(AGGREGATE_ID, 3), AGGREGATE_ID);
+
+        await().during(Duration.ofSeconds(5)).atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+            assertThat(repository.findById(AGGREGATE_ID).get().getAggregateVersion()).isEqualTo(5L));
+    }
+
+    @Test
+    void lifecycleEvent_notificationSubmitted_updatesStatus() {
+        // Prime the store with a DRAFT from a NotificationEdited
+        sendToSqs(notificationEdited(AGGREGATE_ID, 1), AGGREGATE_ID);
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
+            assertThat(repository.findById(AGGREGATE_ID).map(AggregatedNotification::getStatus))
+                .hasValue("DRAFT"));
+
+        // Submit event arrives — status must update to SUBMITTED
+        sendToSqs(notificationSubmitted(AGGREGATE_ID, 2), AGGREGATE_ID);
+
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
+            assertThat(repository.findById(AGGREGATE_ID).map(AggregatedNotification::getStatus))
+                .hasValue("SUBMITTED"));
+    }
+
+    @Test
+    void unknownEventType_isDeadLettered_notRemainingInQueue() {
+        String body = """
+            {"aggregateId":"%s","aggregateVersion":1,"eventType":"uk.gov.defra.imports.notification.UnknownEvent"}
+            """.formatted(AGGREGATE_ID);
+        sendToSqs(body, AGGREGATE_ID);
+
+        // Non-retryable: message must be deleted, not redelivered
+        await().pollDelay(Duration.ofSeconds(3)).atMost(Duration.ofSeconds(15)).untilAsserted(() ->
+            assertThat(repository.findById(AGGREGATE_ID)).isEmpty());
+    }
+
+    @Test
+    void invalidJson_isDeadLettered() {
+        sendToSqs("not valid json {{{", AGGREGATE_ID);
+
+        await().pollDelay(Duration.ofSeconds(3)).atMost(Duration.ofSeconds(15)).untilAsserted(() ->
+            assertThat(repository.count()).isZero());
+    }
+
+    private static String notificationEdited(String aggregateId, long version) {
+        return """
+            {
+              "aggregateId": "%s",
+              "aggregateVersion": %d,
+              "eventType": "uk.gov.defra.imports.notification.NotificationEdited",
+              "data": {
+                "exchangedDocument": {
+                  "identifier": "GBN-AG-26-001",
+                  "notificationStatusCode": "DRAFT",
+                  "issueDateTime": "2026-08-19T10:00:00Z"
+                },
+                "specifiedConsignment": {
+                  "originCountry": { "code": { "value": "GB" } },
+                  "mainCarriageLogisticsTransportMovement": [
+                    { "arrivalEvent": [{ "scheduledOccurrenceDateTime": "2026-08-20T00:00:00Z" }] }
+                  ],
+                  "includedConsignmentItem": [
+                    { "includedTradeLineItem": [
+                        { "applicableClassification": [{ "classCode": { "value": "01059900" } }] }
+                    ]}
+                  ]
+                }
+              }
+            }
+            """.formatted(aggregateId, version);
+    }
+
+    private static String notificationSubmitted(String aggregateId, long version) {
+        return """
+            {
+              "aggregateId": "%s",
+              "aggregateVersion": %d,
+              "eventType": "uk.gov.defra.imports.notification.NotificationSubmitted",
+              "data": {
+                "exchangedDocument": {
+                  "identifier": "GBN-AG-26-001",
+                  "notificationStatusCode": "SUBMITTED",
+                  "issueDateTime": "2026-08-19T11:00:00Z"
+                },
+                "specifiedConsignment": {
+                  "originCountry": { "code": { "value": "GB" } }
+                }
+              }
+            }
+            """.formatted(aggregateId, version);
+    }
+}
