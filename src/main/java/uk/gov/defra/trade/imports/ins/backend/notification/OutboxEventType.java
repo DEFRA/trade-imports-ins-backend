@@ -1,4 +1,4 @@
-package uk.gov.defra.trade.imports.ins.backend.consumer;
+package uk.gov.defra.trade.imports.ins.backend.notification;
 
 import java.util.Optional;
 
@@ -6,9 +6,7 @@ public enum OutboxEventType {
 
     NOTIFICATION_EDITED("uk.gov.defra.imports.notification.NotificationEdited"),
     NOTIFICATION_SUBMITTED("uk.gov.defra.imports.notification.NotificationSubmitted"),
-    NOTIFICATION_SUBMISSION_AMENDED("uk.gov.defra.imports.notification.NotificationSubmissionAmended"),
-    NOTIFICATION_CREATED("uk.gov.defra.imports.notification.NotificationCreated"),
-    NOTIFICATION_SUBMISSION_CANCELLED("uk.gov.defra.imports.notification.NotificationSubmissionCancelled");
+    NOTIFICATION_SUBMISSION_AMENDED("uk.gov.defra.imports.notification.NotificationSubmissionAmended");
 
     private final String wireValue;
 

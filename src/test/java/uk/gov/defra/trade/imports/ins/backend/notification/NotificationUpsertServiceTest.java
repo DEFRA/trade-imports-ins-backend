@@ -1,4 +1,4 @@
-package uk.gov.defra.trade.imports.ins.backend.consumer;
+package uk.gov.defra.trade.imports.ins.backend.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -18,7 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import uk.gov.defra.trade.imports.ins.backend.store.AggregatedNotification;
+import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotification;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationUpsertServiceTest {
@@ -38,7 +38,7 @@ class NotificationUpsertServiceTest {
     void upsert_callsMongoTemplate_withVersionGuardedQuery() throws Exception {
         JsonNode body = mapper.readTree(fullNotificationEdited("agg-1", 3));
 
-        service.upsert(body);
+        service.upsert(OutboxEventType.NOTIFICATION_EDITED, body);
 
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
         ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
@@ -47,10 +47,14 @@ class NotificationUpsertServiceTest {
         // Query must filter on _id AND aggregateVersion < incomingVersion
         Document queryDoc = queryCaptor.getValue().getQueryObject();
         assertThat(queryDoc.get("_id")).isEqualTo("agg-1");
-        assertThat(queryDoc.containsKey("aggregateVersion")).isTrue();
+        Document versionFilter = queryDoc.get("aggregateVersion", Document.class);
+        assertThat(versionFilter.get("$lt")).isEqualTo(3L);
 
         // Update must include the snapshot fields — inspect BSON document directly to avoid codec issues
-        Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        Document updateDoc = updateCaptor.getValue().getUpdateObject();
+        Document setOnInsert = updateDoc.get("$setOnInsert", Document.class);
+        assertThat(setOnInsert.get("_id")).isEqualTo("agg-1");
+        Document setFields = updateDoc.get("$set", Document.class);
         assertThat(setFields.get("referenceNumber")).isEqualTo("GBN-AG-26-001");
         assertThat(setFields.get("status")).isEqualTo("DRAFT");
         assertThat(setFields.get("originCountry")).isEqualTo("GB");
@@ -61,7 +65,7 @@ class NotificationUpsertServiceTest {
         JsonNode body = mapper.readTree("""
             {"aggregateVersion":1,"eventType":"uk.gov.defra.imports.notification.NotificationEdited"}
             """);
-        assertThatThrownBy(() -> service.upsert(body))
+        assertThatThrownBy(() -> service.upsert(OutboxEventType.NOTIFICATION_EDITED, body))
             .isInstanceOf(SqsNonRetryableException.class)
             .hasMessageContaining("aggregateId");
     }
@@ -71,9 +75,47 @@ class NotificationUpsertServiceTest {
         JsonNode body = mapper.readTree("""
             {"aggregateId":"agg-1","eventType":"uk.gov.defra.imports.notification.NotificationEdited"}
             """);
-        assertThatThrownBy(() -> service.upsert(body))
+        assertThatThrownBy(() -> service.upsert(OutboxEventType.NOTIFICATION_EDITED, body))
             .isInstanceOf(SqsNonRetryableException.class)
             .hasMessageContaining("aggregateVersion");
+    }
+
+    @Test
+    void upsert_throwsNonRetryable_whenIssueDateTimeIsMalformed() throws Exception {
+        // Given
+        JsonNode body = mapper.readTree("""
+            {
+              "aggregateId": "agg-1",
+              "aggregateVersion": 1,
+              "data": {
+                "exchangedDocument": {
+                  "issueDateTime": "not-a-date"
+                }
+              }
+            }
+            """);
+
+        // When / Then
+        assertThatThrownBy(() -> service.upsert(OutboxEventType.NOTIFICATION_EDITED, body))
+            .isInstanceOf(SqsNonRetryableException.class)
+            .hasMessageContaining("issueDateTime")
+            .hasMessageContaining("agg-1");
+    }
+
+    @Test
+    void upsert_delegatesVersionFilterToMongo_forStaleEvent() throws Exception {
+        // Given — version 1 would be stale if the store already holds version 3, but the service
+        // does not check staleness itself; it always issues the upsert and lets MongoDB match nothing.
+        JsonNode body = mapper.readTree(fullNotificationEdited("agg-1", 1));
+
+        // When
+        service.upsert(OutboxEventType.NOTIFICATION_EDITED, body);
+
+        // Then — the query encodes $lt: 1 so MongoDB will match no document and apply no write
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).upsert(queryCaptor.capture(), any(Update.class), eq(AggregatedNotification.class));
+        Document versionFilter = queryCaptor.getValue().getQueryObject().get("aggregateVersion", Document.class);
+        assertThat(versionFilter.get("$lt")).isEqualTo(1L);
     }
 
     @Test
@@ -83,7 +125,7 @@ class NotificationUpsertServiceTest {
             {"aggregateId":"agg-1","aggregateVersion":2}
             """);
 
-        service.upsert(body);
+        service.upsert(OutboxEventType.NOTIFICATION_EDITED, body);
 
         ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
         verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));

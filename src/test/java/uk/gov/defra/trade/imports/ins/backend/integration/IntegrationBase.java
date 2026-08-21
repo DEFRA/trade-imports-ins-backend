@@ -1,9 +1,12 @@
 package uk.gov.defra.trade.imports.ins.backend.integration;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.testcontainers.utility.DockerImageName.parse;
 
 import io.floci.testcontainers.FlociContainer;
 import java.net.URI;
+import java.time.Duration;
 import java.util.EnumMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +25,9 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.CreateQueueRequest;
+import software.amazon.awssdk.services.sqs.model.GetQueueAttributesRequest;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
+import software.amazon.awssdk.services.sqs.model.PurgeQueueInProgressException;
 import software.amazon.awssdk.services.sqs.model.PurgeQueueRequest;
 import software.amazon.awssdk.services.sqs.model.QueueAttributeName;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
@@ -40,7 +45,7 @@ abstract class IntegrationBase {
         DockerImageName.parse("floci/floci:latest"))
         .withRegion(AWS_REGION);
 
-    static MongoDBContainer MONGO_CONTAINER = new MongoDBContainer(
+    static final MongoDBContainer MONGO_CONTAINER = new MongoDBContainer(
         DockerImageName.parse("mongo:7.0")).withExposedPorts(27017);
 
     static String queueUrl;
@@ -86,12 +91,28 @@ abstract class IntegrationBase {
     protected static void purgeQueue() {
         try (SqsClient sqs = localSqsClient()) {
             sqs.purgeQueue(PurgeQueueRequest.builder().queueUrl(queueUrl).build());
-        } catch (Exception e) {
-            log.debug("Queue purge skipped: {}", e.getMessage());
+        } catch (PurgeQueueInProgressException e) {
+            log.debug("Queue purge already in progress, skipping: {}", e.getMessage());
         }
     }
 
-    static SqsClient localSqsClient() {
+    protected static void awaitQueueEmpty() {
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
+            try (SqsClient sqs = localSqsClient()) {
+                var attrs = sqs.getQueueAttributes(GetQueueAttributesRequest.builder()
+                    .queueUrl(queueUrl)
+                    .attributeNames(
+                        QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES,
+                        QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES_NOT_VISIBLE)
+                    .build()).attributes();
+                int visible = Integer.parseInt(attrs.get(QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES));
+                int inFlight = Integer.parseInt(attrs.get(QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES_NOT_VISIBLE));
+                assertThat(visible + inFlight).isZero();
+            }
+        });
+    }
+
+    private static SqsClient localSqsClient() {
         return SqsClient.builder()
             .endpointOverride(URI.create(FLOCI.getEndpoint()))
             .region(Region.of(AWS_REGION))

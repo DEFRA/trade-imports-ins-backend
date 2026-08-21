@@ -1,4 +1,4 @@
-package uk.gov.defra.trade.imports.ins.backend.consumer;
+package uk.gov.defra.trade.imports.ins.backend.notification;
 
 import io.awspring.cloud.sqs.listener.errorhandler.ErrorHandler;
 import io.micrometer.core.instrument.Counter;

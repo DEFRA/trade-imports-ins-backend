@@ -1,26 +1,25 @@
-package uk.gov.defra.trade.imports.ins.backend.consumer;
+package uk.gov.defra.trade.imports.ins.backend.notification;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
-import uk.gov.defra.trade.imports.ins.backend.store.AggregatedNotification;
+import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotification;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class NotificationUpsertService {
 
     private final MongoTemplate mongoTemplate;
 
-    public NotificationUpsertService(MongoTemplate mongoTemplate) {
-        this.mongoTemplate = mongoTemplate;
-    }
-
-    public void upsert(JsonNode body) {
+    public void upsert(OutboxEventType eventType, JsonNode body) {
         String aggregateId = body.path("aggregateId").asText(null);
         long incomingVersion = body.path("aggregateVersion").asLong(-1);
 
@@ -42,7 +41,7 @@ public class NotificationUpsertService {
         String originCountry = textOrNull(
             specifiedConsignment.path("originCountry").path("code").path("value"));
 
-        String arrivalDate = textOrNull(
+        String arrivalDateStr = textOrNull(
             specifiedConsignment
                 .path("mainCarriageLogisticsTransportMovement").path(0)
                 .path("arrivalEvent").path(0)
@@ -55,7 +54,27 @@ public class NotificationUpsertService {
                 .path("applicableClassification").path(0)
                 .path("classCode").path("value"));
 
-        Instant lastUpdated = lastUpdatedStr != null ? Instant.parse(lastUpdatedStr) : Instant.now();
+        Instant lastUpdated;
+        if (lastUpdatedStr != null) {
+            try {
+                lastUpdated = Instant.parse(lastUpdatedStr);
+            } catch (DateTimeParseException e) {
+                throw new SqsNonRetryableException(
+                    "Invalid issueDateTime for aggregateId=" + aggregateId, e);
+            }
+        } else {
+            lastUpdated = Instant.now();
+        }
+
+        Instant arrivalDate = null;
+        if (arrivalDateStr != null) {
+            try {
+                arrivalDate = Instant.parse(arrivalDateStr);
+            } catch (DateTimeParseException e) {
+                throw new SqsNonRetryableException(
+                    "Invalid scheduledOccurrenceDateTime for aggregateId=" + aggregateId, e);
+            }
+        }
 
         // Single atomic operation: only applies when the stored version is lower than the incoming
         // version. Concurrent events for the same notification and out-of-order redelivery both

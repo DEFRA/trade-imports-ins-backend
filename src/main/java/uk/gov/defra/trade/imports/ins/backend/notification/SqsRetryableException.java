@@ -1,4 +1,4 @@
-package uk.gov.defra.trade.imports.ins.backend.consumer;
+package uk.gov.defra.trade.imports.ins.backend.notification;
 
 public class SqsRetryableException extends RuntimeException {
 

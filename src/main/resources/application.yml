@@ -40,7 +40,7 @@ aws:
   region: ${AWS_REGION:eu-west-2}
   sqs:
     notification:
-      queue-url: ${NOTIFICATION_SQS_QUEUE_URL:}.fifo
+      queue-url: ${NOTIFICATION_SQS_QUEUE_URL:}
       wait-time-seconds: ${SQS_WAIT_TIME_SECONDS:10}
       max-messages: ${SQS_MAX_MESSAGES:10}
   emf:

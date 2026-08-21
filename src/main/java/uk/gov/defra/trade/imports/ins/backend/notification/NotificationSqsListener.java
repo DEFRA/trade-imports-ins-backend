@@ -1,4 +1,4 @@
-package uk.gov.defra.trade.imports.ins.backend.consumer;
+package uk.gov.defra.trade.imports.ins.backend.notification;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -34,7 +34,7 @@ public class NotificationSqsListener {
     @SqsListener("${aws.sqs.notification.queue-url}")
     public void receive(
             String body,
-            @Header(SqsHeaders.MessageSystemAttributes.SQS_MESSAGE_GROUP_ID_HEADER) String aggregateId,
+            @Header(name = SqsHeaders.MessageSystemAttributes.SQS_MESSAGE_GROUP_ID_HEADER, required = false) String aggregateId,
             @Header(name = SqsHeaders.MessageSystemAttributes.SQS_APPROXIMATE_RECEIVE_COUNT,
                 required = false) String receiveCount) {
 
@@ -66,7 +66,7 @@ public class NotificationSqsListener {
         });
 
         log.debug("Processing eventType={} aggregateId={}", resolved, aggregateId);
-        upsertService.upsert(parsedBody);
+        upsertService.upsert(resolved, parsedBody);
         processedCounter.increment();
     }
 }

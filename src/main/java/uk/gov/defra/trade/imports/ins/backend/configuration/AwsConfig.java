@@ -5,7 +5,6 @@ import java.net.URI;
 import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -16,11 +15,10 @@ import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
 import software.amazon.awssdk.services.sqs.SqsAsyncClientBuilder;
-import uk.gov.defra.trade.imports.ins.backend.consumer.NotificationErrorHandler;
+import uk.gov.defra.trade.imports.ins.backend.notification.NotificationErrorHandler;
 
 @Slf4j
 @Configuration
-@EnableConfigurationProperties({NotificationSqsConfig.class, AppAwsConfig.class})
 public class AwsConfig {
 
     private final String region;
@@ -40,7 +38,8 @@ public class AwsConfig {
             .credentialsProvider(resolveCredentialsProvider())
             .overrideConfiguration(c -> c
                 .retryStrategy(RetryMode.ADAPTIVE_V2)
-                .apiCallTimeout(Duration.ofSeconds(30)));
+                .apiCallTimeout(Duration.ofSeconds(30))
+                .apiCallAttemptTimeout(Duration.ofSeconds(10)));
         if (hasEndpointOverride()) {
             log.info("Using SQS endpoint override: {}", appAwsConfig.endpointOverride());
             builder.endpointOverride(URI.create(appAwsConfig.endpointOverride()));

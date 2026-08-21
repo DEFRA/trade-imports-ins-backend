@@ -1,5 +1,6 @@
-package uk.gov.defra.trade.imports.ins.backend.consumer;
+package uk.gov.defra.trade.imports.ins.backend.notification;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -19,17 +20,20 @@ class NotificationSqsListenerTest {
     @Mock
     private NotificationUpsertService upsertService;
 
+    private SimpleMeterRegistry registry;
     private NotificationSqsListener listener;
 
     @BeforeEach
     void setup() {
-        listener = new NotificationSqsListener(new ObjectMapper(), upsertService, new SimpleMeterRegistry());
+        registry = new SimpleMeterRegistry();
+        listener = new NotificationSqsListener(new ObjectMapper(), upsertService, registry);
     }
 
     @Test
     void receive_delegatesToUpsertService_forKnownEventType() {
         listener.receive(notificationEdited("agg-1"), "agg-1", "1");
-        verify(upsertService).upsert(any());
+        verify(upsertService).upsert(any(OutboxEventType.class), any());
+        assertThat(registry.counter("notification.ins.sqs.messages", "outcome", "processed").count()).isEqualTo(1);
     }
 
     @Test
@@ -40,7 +44,7 @@ class NotificationSqsListenerTest {
         assertThatThrownBy(() -> listener.receive(body, "agg-1", "1"))
             .isInstanceOf(SqsNonRetryableException.class)
             .hasMessageContaining("Unrecognised eventType");
-        verify(upsertService, never()).upsert(any());
+        verify(upsertService, never()).upsert(any(OutboxEventType.class), any());
     }
 
     @Test
@@ -48,7 +52,15 @@ class NotificationSqsListenerTest {
         assertThatThrownBy(() -> listener.receive("", "agg-1", "1"))
             .isInstanceOf(SqsNonRetryableException.class)
             .hasMessageContaining("Empty message body");
-        verify(upsertService, never()).upsert(any());
+        verify(upsertService, never()).upsert(any(OutboxEventType.class), any());
+    }
+
+    @Test
+    void receive_throwsNonRetryable_forNullBody() {
+        assertThatThrownBy(() -> listener.receive(null, "agg-1", "1"))
+            .isInstanceOf(SqsNonRetryableException.class)
+            .hasMessageContaining("Empty message body");
+        verify(upsertService, never()).upsert(any(OutboxEventType.class), any());
     }
 
     @Test
@@ -56,7 +68,7 @@ class NotificationSqsListenerTest {
         assertThatThrownBy(() -> listener.receive("not json {{", "agg-1", "1"))
             .isInstanceOf(SqsNonRetryableException.class)
             .hasMessageContaining("not valid JSON");
-        verify(upsertService, never()).upsert(any());
+        verify(upsertService, never()).upsert(any(OutboxEventType.class), any());
     }
 
     @Test
@@ -64,7 +76,15 @@ class NotificationSqsListenerTest {
         assertThatThrownBy(() -> listener.receive(notificationEdited("agg-1"), "", "1"))
             .isInstanceOf(SqsNonRetryableException.class)
             .hasMessageContaining("MESSAGE_GROUP_ID");
-        verify(upsertService, never()).upsert(any());
+        verify(upsertService, never()).upsert(any(OutboxEventType.class), any());
+    }
+
+    @Test
+    void receive_throwsNonRetryable_forNullAggregateId() {
+        assertThatThrownBy(() -> listener.receive(notificationEdited("agg-1"), null, "1"))
+            .isInstanceOf(SqsNonRetryableException.class)
+            .hasMessageContaining("MESSAGE_GROUP_ID");
+        verify(upsertService, never()).upsert(any(OutboxEventType.class), any());
     }
 
     private static String notificationEdited(String aggregateId) {

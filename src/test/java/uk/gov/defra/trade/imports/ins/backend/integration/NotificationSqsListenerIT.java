@@ -8,8 +8,8 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import uk.gov.defra.trade.imports.ins.backend.store.AggregatedNotification;
-import uk.gov.defra.trade.imports.ins.backend.store.AggregatedNotificationRepository;
+import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotification;
+import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotificationRepository;
 
 class NotificationSqsListenerIT extends IntegrationBase {
 
@@ -26,8 +26,10 @@ class NotificationSqsListenerIT extends IntegrationBase {
 
     @Test
     void notificationEdited_createsDocumentInMongo() {
+        // Given
         sendToSqs(notificationEdited(AGGREGATE_ID, 1), AGGREGATE_ID);
 
+        // When / Then
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
             Optional<AggregatedNotification> doc = repository.findById(AGGREGATE_ID);
             assertThat(doc).isPresent();
@@ -41,42 +43,49 @@ class NotificationSqsListenerIT extends IntegrationBase {
 
     @Test
     void deliveringSameEventTwice_isIdempotent() {
+        // Given
         String body = notificationEdited(AGGREGATE_ID, 1);
         sendToSqs(body, AGGREGATE_ID);
 
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
             assertThat(repository.findById(AGGREGATE_ID)).isPresent());
 
+        // When
         sendToSqs(body, AGGREGATE_ID);
 
-        // Version guard means second delivery is a no-op
+        // Then — version guard means second delivery is a no-op
         await().during(Duration.ofSeconds(5)).atMost(Duration.ofSeconds(10)).untilAsserted(() ->
             assertThat(repository.count()).isEqualTo(1L));
     }
 
     @Test
     void lowerAggregateVersion_isIgnored_documentKeepsHigherVersion() {
+        // Given
         sendToSqs(notificationEdited(AGGREGATE_ID, 5), AGGREGATE_ID);
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
             assertThat(repository.findById(AGGREGATE_ID)).isPresent());
 
+        // When
         sendToSqs(notificationEdited(AGGREGATE_ID, 3), AGGREGATE_ID);
 
+        // Then
         await().during(Duration.ofSeconds(5)).atMost(Duration.ofSeconds(10)).untilAsserted(() ->
-            assertThat(repository.findById(AGGREGATE_ID).get().getAggregateVersion()).isEqualTo(5L));
+            assertThat(repository.findById(AGGREGATE_ID).map(AggregatedNotification::getAggregateVersion))
+                .hasValue(5L));
     }
 
     @Test
     void lifecycleEvent_notificationSubmitted_updatesStatus() {
-        // Prime the store with a DRAFT from a NotificationEdited
+        // Given — prime the store with a DRAFT from a NotificationEdited
         sendToSqs(notificationEdited(AGGREGATE_ID, 1), AGGREGATE_ID);
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
             assertThat(repository.findById(AGGREGATE_ID).map(AggregatedNotification::getStatus))
                 .hasValue("DRAFT"));
 
-        // Submit event arrives — status must update to SUBMITTED
+        // When — submit event arrives
         sendToSqs(notificationSubmitted(AGGREGATE_ID, 2), AGGREGATE_ID);
 
+        // Then — status must update to SUBMITTED
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
             assertThat(repository.findById(AGGREGATE_ID).map(AggregatedNotification::getStatus))
                 .hasValue("SUBMITTED"));
@@ -84,22 +93,27 @@ class NotificationSqsListenerIT extends IntegrationBase {
 
     @Test
     void unknownEventType_isDeadLettered_notRemainingInQueue() {
+        // Given
         String body = """
             {"aggregateId":"%s","aggregateVersion":1,"eventType":"uk.gov.defra.imports.notification.UnknownEvent"}
             """.formatted(AGGREGATE_ID);
+
+        // When
         sendToSqs(body, AGGREGATE_ID);
 
-        // Non-retryable: message must be deleted, not redelivered
-        await().pollDelay(Duration.ofSeconds(3)).atMost(Duration.ofSeconds(15)).untilAsserted(() ->
-            assertThat(repository.findById(AGGREGATE_ID)).isEmpty());
+        // Then — non-retryable: message must be deleted from the queue (not redelivered)
+        awaitQueueEmpty();
+        assertThat(repository.findById(AGGREGATE_ID)).isEmpty();
     }
 
     @Test
     void invalidJson_isDeadLettered() {
+        // Given / When
         sendToSqs("not valid json {{{", AGGREGATE_ID);
 
-        await().pollDelay(Duration.ofSeconds(3)).atMost(Duration.ofSeconds(15)).untilAsserted(() ->
-            assertThat(repository.count()).isZero());
+        // Then — non-retryable: message must be deleted from the queue (not redelivered)
+        awaitQueueEmpty();
+        assertThat(repository.count()).isZero();
     }
 
     private static String notificationEdited(String aggregateId, long version) {
