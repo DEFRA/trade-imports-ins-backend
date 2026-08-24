@@ -45,18 +45,18 @@ class NotificationUpsertServiceTest {
 
         // Query must filter on _id AND aggregateVersion < incomingVersion
         Document queryDoc = queryCaptor.getValue().getQueryObject();
-        assertThat(queryDoc.get("_id")).isEqualTo("agg-1");
+        assertThat(queryDoc).containsEntry("_id", "agg-1");
         Document versionFilter = queryDoc.get("aggregateVersion", Document.class);
-        assertThat(versionFilter.get("$lt")).isEqualTo(3L);
+        assertThat(versionFilter).containsEntry("$lt", 3L);
 
         // Update must include the snapshot fields — inspect BSON document directly to avoid codec issues
         Document updateDoc = updateCaptor.getValue().getUpdateObject();
         Document setOnInsert = updateDoc.get("$setOnInsert", Document.class);
-        assertThat(setOnInsert.get("_id")).isEqualTo("agg-1");
+        assertThat(setOnInsert).containsEntry("_id", "agg-1");
         Document setFields = updateDoc.get("$set", Document.class);
-        assertThat(setFields.get("referenceNumber")).isEqualTo("GBN-AG-26-001");
-        assertThat(setFields.get("status")).isEqualTo("DRAFT");
-        assertThat(setFields.get("originCountry")).isEqualTo("GB");
+        assertThat(setFields).containsEntry("referenceNumber", "GBN-AG-26-001")
+            .containsEntry("status", "DRAFT")
+            .containsEntry("originCountry", "GB");
     }
 
     @Test
@@ -114,7 +114,7 @@ class NotificationUpsertServiceTest {
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
         verify(mongoTemplate).upsert(queryCaptor.capture(), any(Update.class), eq(AggregatedNotification.class));
         Document versionFilter = queryCaptor.getValue().getQueryObject().get("aggregateVersion", Document.class);
-        assertThat(versionFilter.get("$lt")).isEqualTo(1L);
+        assertThat(versionFilter).containsEntry("$lt", 1L);
     }
 
     @Test
@@ -130,8 +130,8 @@ class NotificationUpsertServiceTest {
         verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
 
         Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
-        assertThat(setFields).doesNotContainKey("referenceNumber");
-        assertThat(setFields).doesNotContainKey("status");
+        assertThat(setFields).doesNotContainKey("referenceNumber")
+            .doesNotContainKey("status");
     }
 
     private static String fullNotificationEdited(long version) {
