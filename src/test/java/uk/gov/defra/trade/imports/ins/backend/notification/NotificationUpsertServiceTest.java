@@ -37,7 +37,7 @@ class NotificationUpsertServiceTest {
     void upsert_callsMongoTemplate_withVersionGuardedQuery() throws Exception {
         JsonNode body = mapper.readTree(fullNotificationEdited(3));
 
-        service.upsert(OutboxEventType.NOTIFICATION_EDITED, body);
+        service.upsert(body);
 
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
         ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
@@ -64,7 +64,7 @@ class NotificationUpsertServiceTest {
         JsonNode body = mapper.readTree("""
             {"aggregateVersion":1,"eventType":"uk.gov.defra.imports.notification.NotificationEdited"}
             """);
-        assertThatThrownBy(() -> service.upsert(OutboxEventType.NOTIFICATION_EDITED, body))
+        assertThatThrownBy(() -> service.upsert(body))
             .isInstanceOf(SqsNonRetryableException.class)
             .hasMessageContaining("aggregateId");
     }
@@ -74,7 +74,7 @@ class NotificationUpsertServiceTest {
         JsonNode body = mapper.readTree("""
             {"aggregateId":"agg-1","eventType":"uk.gov.defra.imports.notification.NotificationEdited"}
             """);
-        assertThatThrownBy(() -> service.upsert(OutboxEventType.NOTIFICATION_EDITED, body))
+        assertThatThrownBy(() -> service.upsert(body))
             .isInstanceOf(SqsNonRetryableException.class)
             .hasMessageContaining("aggregateVersion");
     }
@@ -95,7 +95,7 @@ class NotificationUpsertServiceTest {
             """);
 
         // When / Then
-        assertThatThrownBy(() -> service.upsert(OutboxEventType.NOTIFICATION_EDITED, body))
+        assertThatThrownBy(() -> service.upsert(body))
             .isInstanceOf(SqsNonRetryableException.class)
             .hasMessageContaining("issueDateTime")
             .hasMessageContaining("agg-1");
@@ -108,7 +108,7 @@ class NotificationUpsertServiceTest {
         JsonNode body = mapper.readTree(fullNotificationEdited(1));
 
         // When
-        service.upsert(OutboxEventType.NOTIFICATION_EDITED, body);
+        service.upsert(body);
 
         // Then — the query encodes $lt: 1 so MongoDB will match no document and apply no write
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
@@ -124,7 +124,7 @@ class NotificationUpsertServiceTest {
             {"aggregateId":"agg-1","aggregateVersion":2}
             """);
 
-        service.upsert(OutboxEventType.NOTIFICATION_EDITED, body);
+        service.upsert(body);
 
         ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
         verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
