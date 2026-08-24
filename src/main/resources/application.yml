@@ -5,6 +5,9 @@ server:
 spring:
   application:
     name: trade-imports-ins-backend
+  threads:
+    virtual:
+      enabled: true
   data:
     mongodb:
       uri: ${MONGO_URI:mongodb://localhost:27017/}
@@ -21,6 +24,10 @@ spring:
         enabled: true
   lifecycle:
     timeout-per-shutdown-phase: 30s
+  cloud:
+    aws:
+      region:
+        static: ${aws.region}
 
 
 # CDP platform configuration
@@ -54,8 +61,10 @@ aws:
 app:
   aws:
     endpoint-override: ${APP_AWS_ENDPOINT_OVERRIDE:}
-    access-key-id: ${APP_AWS_ACCESS_KEY_ID:}
-    secret-access-key: ${APP_AWS_SECRET_ACCESS_KEY:}
+    # Local development only — set via environment variables or application-local.yml.
+    # Do NOT set real credentials here; these keys are ignored in deployed environments.
+    # access-key-id: ${APP_AWS_ACCESS_KEY_ID:}
+    # secret-access-key: ${APP_AWS_SECRET_ACCESS_KEY:}
 
 # Logging configuration
 logging:
