@@ -66,7 +66,7 @@ public class NotificationSqsListener {
         });
 
         log.debug("Processing eventType={} aggregateId={}", resolved, aggregateId);
-        upsertService.upsert(resolved, parsedBody);
+        upsertService.upsert(parsedBody);
         processedCounter.increment();
     }
 }

@@ -10,18 +10,18 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
-import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotification;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationUpsertService {
 
-    private final MongoTemplate mongoTemplate;
+  private static final String AGGREGATE_VERSION = "aggregateVersion";
+  private final MongoTemplate mongoTemplate;
 
-    public void upsert(OutboxEventType eventType, JsonNode body) {
+    public void upsert(JsonNode body) {
         String aggregateId = body.path("aggregateId").asText(null);
-        long incomingVersion = body.path("aggregateVersion").asLong(-1);
+        long incomingVersion = body.path(AGGREGATE_VERSION).asLong(-1);
 
         if (aggregateId == null || aggregateId.isBlank()) {
             throw new SqsNonRetryableException("Missing aggregateId in event body");
@@ -81,7 +81,7 @@ public class NotificationUpsertService {
         // converge to the highest applied version without a read-then-write race.
         Update update = new Update()
             .setOnInsert("_id", aggregateId)
-            .set("aggregateVersion", incomingVersion)
+            .set(AGGREGATE_VERSION, incomingVersion)
             .set("lastUpdated", lastUpdated);
 
         if (referenceNumber != null) update.set("referenceNumber", referenceNumber);
@@ -92,7 +92,7 @@ public class NotificationUpsertService {
 
         Query query = Query.query(
             Criteria.where("_id").is(aggregateId)
-                .and("aggregateVersion").lt(incomingVersion));
+                .and(AGGREGATE_VERSION).lt(incomingVersion));
 
         mongoTemplate.upsert(query, update, AggregatedNotification.class);
 

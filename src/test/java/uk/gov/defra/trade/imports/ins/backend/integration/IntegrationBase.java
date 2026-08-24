@@ -2,7 +2,6 @@ package uk.gov.defra.trade.imports.ins.backend.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import static org.testcontainers.utility.DockerImageName.parse;
 
 import io.floci.testcontainers.FlociContainer;
 import java.net.URI;
@@ -48,7 +47,7 @@ abstract class IntegrationBase {
     static final MongoDBContainer MONGO_CONTAINER = new MongoDBContainer(
         DockerImageName.parse("mongo:7.0")).withExposedPorts(27017);
 
-    static String queueUrl;
+    static final String queueUrl;
 
     static {
         Startables.deepStart(MONGO_CONTAINER, FLOCI).join();

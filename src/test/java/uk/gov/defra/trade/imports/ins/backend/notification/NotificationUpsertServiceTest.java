@@ -18,7 +18,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotification;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationUpsertServiceTest {
@@ -36,7 +35,7 @@ class NotificationUpsertServiceTest {
 
     @Test
     void upsert_callsMongoTemplate_withVersionGuardedQuery() throws Exception {
-        JsonNode body = mapper.readTree(fullNotificationEdited("agg-1", 3));
+        JsonNode body = mapper.readTree(fullNotificationEdited(3));
 
         service.upsert(OutboxEventType.NOTIFICATION_EDITED, body);
 
@@ -106,7 +105,7 @@ class NotificationUpsertServiceTest {
     void upsert_delegatesVersionFilterToMongo_forStaleEvent() throws Exception {
         // Given — version 1 would be stale if the store already holds version 3, but the service
         // does not check staleness itself; it always issues the upsert and lets MongoDB match nothing.
-        JsonNode body = mapper.readTree(fullNotificationEdited("agg-1", 1));
+        JsonNode body = mapper.readTree(fullNotificationEdited(1));
 
         // When
         service.upsert(OutboxEventType.NOTIFICATION_EDITED, body);
@@ -135,7 +134,7 @@ class NotificationUpsertServiceTest {
         assertThat(setFields).doesNotContainKey("status");
     }
 
-    private static String fullNotificationEdited(String aggregateId, long version) {
+    private static String fullNotificationEdited(long version) {
         return """
             {
               "aggregateId": "%s",
@@ -160,6 +159,6 @@ class NotificationUpsertServiceTest {
                 }
               }
             }
-            """.formatted(aggregateId, version);
+            """.formatted("agg-1", version);
     }
 }

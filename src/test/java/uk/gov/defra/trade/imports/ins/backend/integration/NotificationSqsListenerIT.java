@@ -27,7 +27,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
     @Test
     void notificationEdited_createsDocumentInMongo() {
         // Given
-        sendToSqs(notificationEdited(AGGREGATE_ID, 1), AGGREGATE_ID);
+        sendToSqs(notificationEdited(1), AGGREGATE_ID);
 
         // When / Then
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
@@ -44,7 +44,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
     @Test
     void deliveringSameEventTwice_isIdempotent() {
         // Given
-        String body = notificationEdited(AGGREGATE_ID, 1);
+        String body = notificationEdited(1);
         sendToSqs(body, AGGREGATE_ID);
 
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
@@ -61,12 +61,12 @@ class NotificationSqsListenerIT extends IntegrationBase {
     @Test
     void lowerAggregateVersion_isIgnored_documentKeepsHigherVersion() {
         // Given
-        sendToSqs(notificationEdited(AGGREGATE_ID, 5), AGGREGATE_ID);
+        sendToSqs(notificationEdited(5), AGGREGATE_ID);
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
             assertThat(repository.findById(AGGREGATE_ID)).isPresent());
 
         // When
-        sendToSqs(notificationEdited(AGGREGATE_ID, 3), AGGREGATE_ID);
+        sendToSqs(notificationEdited(3), AGGREGATE_ID);
 
         // Then
         await().during(Duration.ofSeconds(5)).atMost(Duration.ofSeconds(10)).untilAsserted(() ->
@@ -77,13 +77,13 @@ class NotificationSqsListenerIT extends IntegrationBase {
     @Test
     void lifecycleEvent_notificationSubmitted_updatesStatus() {
         // Given — prime the store with a DRAFT from a NotificationEdited
-        sendToSqs(notificationEdited(AGGREGATE_ID, 1), AGGREGATE_ID);
+        sendToSqs(notificationEdited(1), AGGREGATE_ID);
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
             assertThat(repository.findById(AGGREGATE_ID).map(AggregatedNotification::getStatus))
                 .hasValue("DRAFT"));
 
         // When — submit event arrives
-        sendToSqs(notificationSubmitted(AGGREGATE_ID, 2), AGGREGATE_ID);
+        sendToSqs(notificationSubmitted(), AGGREGATE_ID);
 
         // Then — status must update to SUBMITTED
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
@@ -116,7 +116,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
         assertThat(repository.count()).isZero();
     }
 
-    private static String notificationEdited(String aggregateId, long version) {
+    private static String notificationEdited(long version) {
         return """
             {
               "aggregateId": "%s",
@@ -141,10 +141,10 @@ class NotificationSqsListenerIT extends IntegrationBase {
                 }
               }
             }
-            """.formatted(aggregateId, version);
+            """.formatted(NotificationSqsListenerIT.AGGREGATE_ID, version);
     }
 
-    private static String notificationSubmitted(String aggregateId, long version) {
+    private static String notificationSubmitted() {
         return """
             {
               "aggregateId": "%s",
@@ -161,6 +161,6 @@ class NotificationSqsListenerIT extends IntegrationBase {
                 }
               }
             }
-            """.formatted(aggregateId, version);
+            """.formatted(NotificationSqsListenerIT.AGGREGATE_ID, (long) 2);
     }
 }
