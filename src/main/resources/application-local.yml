@@ -35,4 +35,4 @@ app:
 aws:
   sqs:
     notification:
-      queue-url: ${NOTIFICATION_SQS_QUEUE_URL:http://localhost:4566/000000000000/trade_imports_ins_notifications.fifo}
+      queue-url: ${NOTIFICATION_SQS_QUEUE_URL:http://localhost:4566/000000000000/trade_imports_animals_eu_notifications_ins_backend.fifo}
