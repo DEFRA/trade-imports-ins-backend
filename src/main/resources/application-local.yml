@@ -23,3 +23,16 @@ spring:
     mongodb:
       ssl:
         enabled: false
+
+# App-level overrides for local development
+# AWS credentials are dummy values accepted by Floci — never use real keys here
+app:
+  aws:
+    endpoint-override: ${APP_AWS_ENDPOINT_OVERRIDE:http://localhost:4566}
+    access-key-id: test
+    secret-access-key: test
+
+aws:
+  sqs:
+    notification:
+      queue-url: ${NOTIFICATION_SQS_QUEUE_URL:http://localhost:4566/000000000000/trade_imports_animals_eu_notifications_ins_backend.fifo}

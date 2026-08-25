@@ -1,25 +1,35 @@
 package uk.gov.defra.trade.imports.ins.backend.integration;
 
-import static org.testcontainers.utility.DockerImageName.parse;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
-import java.util.List;
+import io.floci.testcontainers.FlociContainer;
+import java.net.URI;
+import java.time.Duration;
+import java.util.EnumMap;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.AfterEach;
-import org.mockserver.client.MockServerClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.containers.MockServerContainer;
 import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.lifecycle.Startables;
 import org.testcontainers.utility.DockerImageName;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.model.CreateQueueRequest;
+import software.amazon.awssdk.services.sqs.model.GetQueueAttributesRequest;
+import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
+import software.amazon.awssdk.services.sqs.model.PurgeQueueInProgressException;
+import software.amazon.awssdk.services.sqs.model.PurgeQueueRequest;
+import software.amazon.awssdk.services.sqs.model.QueueAttributeName;
+import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
 @Slf4j
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -27,62 +37,86 @@ import org.testcontainers.utility.DockerImageName;
 @ActiveProfiles("integration-test")
 abstract class IntegrationBase {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(IntegrationBase.class);
-  static final List<String> SERVICES_TO_MOCK = List.of();
+    static final String AWS_REGION = "eu-west-2";
+    static final String QUEUE_NAME = "trade_imports_ins_notifications.fifo";
 
-  @LocalServerPort
-  int port;
+    static final FlociContainer FLOCI = new FlociContainer(
+        DockerImageName.parse("floci/floci:latest"))
+        .withRegion(AWS_REGION);
 
-  @Autowired
-  protected MockMvc mockMvc;
+    static final MongoDBContainer MONGO_CONTAINER = new MongoDBContainer(
+        DockerImageName.parse("mongo:7.0")).withExposedPorts(27017);
 
-  private MockServerClient mockServerClient;
+    static final String queueUrl;
 
-  static final MockServerContainer MOCK_SERVER_CONTAINER = new MockServerContainer(
-      parse("mockserver/mockserver").withTag(
-          "mockserver-" + MockServerClient.class.getPackage().getImplementationVersion()));
-
-  static MongoDBContainer MONGO_CONTAINER = new MongoDBContainer(
-      DockerImageName.parse("mongo:7.0")).withExposedPorts(27017);
-
-  static {
-    Startables.deepStart(
-        MONGO_CONTAINER, MOCK_SERVER_CONTAINER
-    ).join();
-  }
-
-  @DynamicPropertySource
-  static void setProperties(DynamicPropertyRegistry registry) {
-
-    // Service API urls — add entries to SERVICES_TO_MOCK to register mock endpoints
-    SERVICES_TO_MOCK.forEach(
-        service -> registry.add("%s.url".formatted(service),
-            () -> "%s/%s/".formatted(MOCK_SERVER_CONTAINER.getEndpoint(), service)));
-
-    registry.add("spring.data.mongodb.uri", MONGO_CONTAINER::getReplicaSetUrl);
-    registry.add("spring.data.mongodb.ssl.enabled", () -> "false");
-  }
-
-  /**
-   * The main MockServerClient to be used for stubbing out the requests that we need to be
-   * verifiable.
-   *
-   * @return the MockServerClient to be used for stubbing out external services.
-   */
-  MockServerClient usingStub() {
-    if (mockServerClient == null) {
-      mockServerClient = new MockServerClient(MOCK_SERVER_CONTAINER.getHost(),
-          MOCK_SERVER_CONTAINER.getServerPort());
-      LOGGER.info(
-          "You should be able to find the dashboard here : http://{}:{}/mockserver/dashboard",
-          MOCK_SERVER_CONTAINER.getHost(), MOCK_SERVER_CONTAINER.getServerPort());
+    static {
+        Startables.deepStart(MONGO_CONTAINER, FLOCI).join();
+        try (SqsClient sqs = localSqsClient()) {
+            sqs.createQueue(CreateQueueRequest.builder()
+                .queueName(QUEUE_NAME)
+                .attributes(new EnumMap<>(Map.of(
+                    QueueAttributeName.FIFO_QUEUE, "true",
+                    QueueAttributeName.CONTENT_BASED_DEDUPLICATION, "true")))
+                .build());
+            queueUrl = sqs.getQueueUrl(GetQueueUrlRequest.builder().queueName(QUEUE_NAME).build()).queueUrl();
+        }
     }
-    return mockServerClient;
-  }
 
-  @AfterEach
-  void tearDown() {
-    usingStub().reset();
-  }
+    @Autowired
+    protected MockMvc mockMvc;
 
+    @DynamicPropertySource
+    static void setProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.data.mongodb.uri", MONGO_CONTAINER::getReplicaSetUrl);
+        registry.add("spring.data.mongodb.ssl.enabled", () -> "false");
+        registry.add("aws.sqs.notification.queue-url", () -> queueUrl);
+        registry.add("aws.sqs.notification.wait-time-seconds", () -> "1");
+        registry.add("app.aws.endpoint-override", FLOCI::getEndpoint);
+        registry.add("app.aws.access-key-id", FLOCI::getAccessKey);
+        registry.add("app.aws.secret-access-key", FLOCI::getSecretKey);
+    }
+
+    protected static void sendToSqs(String body, String messageGroupId) {
+        try (SqsClient sqs = localSqsClient()) {
+            sqs.sendMessage(SendMessageRequest.builder()
+                .queueUrl(queueUrl)
+                .messageBody(body)
+                .messageGroupId(messageGroupId)
+                .messageDeduplicationId(java.util.UUID.randomUUID().toString())
+                .build());
+        }
+    }
+
+    protected static void purgeQueue() {
+        try (SqsClient sqs = localSqsClient()) {
+            sqs.purgeQueue(PurgeQueueRequest.builder().queueUrl(queueUrl).build());
+        } catch (PurgeQueueInProgressException e) {
+            log.debug("Queue purge already in progress, skipping: {}", e.getMessage());
+        }
+    }
+
+    protected static void awaitQueueEmpty() {
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
+            try (SqsClient sqs = localSqsClient()) {
+                var attrs = sqs.getQueueAttributes(GetQueueAttributesRequest.builder()
+                    .queueUrl(queueUrl)
+                    .attributeNames(
+                        QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES,
+                        QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES_NOT_VISIBLE)
+                    .build()).attributes();
+                int visible = Integer.parseInt(attrs.get(QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES));
+                int inFlight = Integer.parseInt(attrs.get(QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES_NOT_VISIBLE));
+                assertThat(visible + inFlight).isZero();
+            }
+        });
+    }
+
+    private static SqsClient localSqsClient() {
+        return SqsClient.builder()
+            .endpointOverride(URI.create(FLOCI.getEndpoint()))
+            .region(Region.of(AWS_REGION))
+            .credentialsProvider(StaticCredentialsProvider.create(
+                AwsBasicCredentials.create(FLOCI.getAccessKey(), FLOCI.getSecretKey())))
+            .build();
+    }
 }
