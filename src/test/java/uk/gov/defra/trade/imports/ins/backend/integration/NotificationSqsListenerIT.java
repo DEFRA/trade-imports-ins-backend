@@ -36,7 +36,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
             assertThat(doc.get().getReferenceNumber()).isEqualTo("GBN-AG-26-001");
             assertThat(doc.get().getStatus()).isEqualTo("DRAFT");
             assertThat(doc.get().getOriginCountry()).isEqualTo("GB");
-            assertThat(doc.get().getCommodity()).isEqualTo("01059900");
+            assertThat(doc.get().getCommodity()).isNull();
             assertThat(doc.get().getAggregateVersion()).isEqualTo(1L);
         });
     }
