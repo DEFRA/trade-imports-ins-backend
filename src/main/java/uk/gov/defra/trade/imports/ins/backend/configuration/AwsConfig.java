@@ -38,8 +38,7 @@ public class AwsConfig {
             .credentialsProvider(resolveCredentialsProvider())
             .overrideConfiguration(c -> c
                 .retryStrategy(RetryMode.ADAPTIVE_V2)
-                .apiCallTimeout(Duration.ofSeconds(30))
-                .apiCallAttemptTimeout(Duration.ofSeconds(10)));
+                .apiCallTimeout(Duration.ofSeconds(30)));
         if (hasEndpointOverride()) {
             log.info("Using SQS endpoint override: {}", appAwsConfig.endpointOverride());
             builder.endpointOverride(URI.create(appAwsConfig.endpointOverride()));
