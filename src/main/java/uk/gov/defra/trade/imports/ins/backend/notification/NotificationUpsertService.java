@@ -47,12 +47,10 @@ public class NotificationUpsertService {
                 .path("arrivalEvent").path(0)
                 .path("scheduledOccurrenceDateTime"));
 
-        String commodity = textOrNull(
-            specifiedConsignment
-                .path("includedConsignmentItem").path(0)
-                .path("includedTradeLineItem").path(0)
-                .path("applicableClassification").path(0)
-                .path("classCode").path("value"));
+        // commodity is intentionally omitted: applicableClassification[0].classCode.value carries
+        // the commodity type (e.g. "Domestic") not the animal name (e.g. "Dog"). The animal name
+        // lives in Commodity.name in animals-backend but is not included in the outbox event payload.
+        // See EUDPA-348 for the animals-backend fix to emit Commodity.name in the outbox event.
 
         Instant lastUpdated;
         if (lastUpdatedStr != null) {
@@ -88,7 +86,6 @@ public class NotificationUpsertService {
         if (status != null) update.set("status", status);
         if (originCountry != null) update.set("originCountry", originCountry);
         if (arrivalDate != null) update.set("arrivalDate", arrivalDate);
-        if (commodity != null) update.set("commodity", commodity);
 
         Query query = Query.query(
             Criteria.where("_id").is(aggregateId)
