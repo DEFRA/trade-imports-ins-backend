@@ -19,6 +19,10 @@ public enum OutboxEventType {
         this.wireValue = wireValue;
     }
 
+    public String wireValue() {
+        return wireValue;
+    }
+
     public static Optional<OutboxEventType> fromWireValue(String value) {
         if (value == null) {
             return Optional.empty();
