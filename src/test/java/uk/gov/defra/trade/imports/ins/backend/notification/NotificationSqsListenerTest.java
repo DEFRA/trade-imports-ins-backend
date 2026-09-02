@@ -87,9 +87,43 @@ class NotificationSqsListenerTest {
         verify(upsertService, never()).upsert(any());
     }
 
+    @Test
+    void receive_delegatesToUpsertService_forNotificationCreated() {
+        listener.receive(eventBody("NotificationCreated"), "agg-1", "1");
+        verify(upsertService).upsert(any());
+    }
+
+    @Test
+    void receive_delegatesToUpsertService_forNotificationAmendmentRequested() {
+        listener.receive(eventBody("NotificationAmendmentRequested"), "agg-1", "1");
+        verify(upsertService).upsert(any());
+    }
+
+    @Test
+    void receive_delegatesToUpsertService_forNotificationAmendmentCancelled() {
+        listener.receive(eventBody("NotificationAmendmentCancelled"), "agg-1", "1");
+        verify(upsertService).upsert(any());
+    }
+
+    @Test
+    void receive_delegatesToUpsertService_forNotificationDeleted() {
+        listener.receive(eventBody("NotificationDeleted"), "agg-1", "1");
+        verify(upsertService).upsert(any());
+    }
+
+    @Test
+    void receive_delegatesToUpsertService_forNotificationSubmissionDeleted() {
+        listener.receive(eventBody("NotificationSubmissionDeleted"), "agg-1", "1");
+        verify(upsertService).upsert(any());
+    }
+
     private static String notificationEdited() {
+        return eventBody("NotificationEdited");
+    }
+
+    private static String eventBody(String eventName) {
         return """
-            {"aggregateId":"%s","aggregateVersion":1,"eventType":"uk.gov.defra.imports.notification.NotificationEdited"}
-            """.formatted("agg-1");
+            {"aggregateId":"%s","aggregateVersion":1,"eventType":"uk.gov.defra.imports.notification.%s"}
+            """.formatted("agg-1", eventName);
     }
 }

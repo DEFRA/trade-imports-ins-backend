@@ -25,6 +25,36 @@ class OutboxEventTypeTest {
     }
 
     @Test
+    void fromWireValue_returnsNotificationCreated_forCorrectWireValue() {
+        assertThat(OutboxEventType.fromWireValue("uk.gov.defra.imports.notification.NotificationCreated"))
+            .contains(OutboxEventType.NOTIFICATION_CREATED);
+    }
+
+    @Test
+    void fromWireValue_returnsNotificationAmendmentRequested_forCorrectWireValue() {
+        assertThat(OutboxEventType.fromWireValue("uk.gov.defra.imports.notification.NotificationAmendmentRequested"))
+            .contains(OutboxEventType.NOTIFICATION_AMENDMENT_REQUESTED);
+    }
+
+    @Test
+    void fromWireValue_returnsNotificationAmendmentCancelled_forCorrectWireValue() {
+        assertThat(OutboxEventType.fromWireValue("uk.gov.defra.imports.notification.NotificationAmendmentCancelled"))
+            .contains(OutboxEventType.NOTIFICATION_AMENDMENT_CANCELLED);
+    }
+
+    @Test
+    void fromWireValue_returnsNotificationDeleted_forCorrectWireValue() {
+        assertThat(OutboxEventType.fromWireValue("uk.gov.defra.imports.notification.NotificationDeleted"))
+            .contains(OutboxEventType.NOTIFICATION_DELETED);
+    }
+
+    @Test
+    void fromWireValue_returnsNotificationSubmissionDeleted_forCorrectWireValue() {
+        assertThat(OutboxEventType.fromWireValue("uk.gov.defra.imports.notification.NotificationSubmissionDeleted"))
+            .contains(OutboxEventType.NOTIFICATION_SUBMISSION_DELETED);
+    }
+
+    @Test
     void fromWireValue_returnsEmpty_forUnknownWireValue() {
         assertThat(OutboxEventType.fromWireValue("uk.gov.defra.imports.notification.UnknownEvent"))
             .isEmpty();
@@ -33,5 +63,14 @@ class OutboxEventTypeTest {
     @Test
     void fromWireValue_returnsEmpty_forNull() {
         assertThat(OutboxEventType.fromWireValue(null)).isEmpty();
+    }
+
+    @Test
+    void allEventTypes_haveCorrectNamespacePrefix() {
+        for (OutboxEventType type : OutboxEventType.values()) {
+            assertThat(type.name() + " wire value must start with the correct namespace prefix")
+                .satisfies(__ -> assertThat(type.wireValue())
+                    .startsWith("uk.gov.defra.imports.notification."));
+        }
     }
 }
