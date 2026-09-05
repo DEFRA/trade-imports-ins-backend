@@ -41,6 +41,15 @@ jobs:
         uses: DEFRA/cdp-build-action/build@main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Adds linux/arm64 to the Docker Hub tags the build job has just published.
+  # Runs after it, never gates it, and never touches ECR.
+  publish-arm64:
+    needs: build
+    uses: DEFRA/trade-imports-workspace/.github/workflows/publish-multiarch.yml@main
+    with:
+      image-name: trade-imports-ins-backend
+
   ## SonarCloud
   ## Uncomment to unable SonarCloud scan
   ## Requires project to be set up in SonarCloud
