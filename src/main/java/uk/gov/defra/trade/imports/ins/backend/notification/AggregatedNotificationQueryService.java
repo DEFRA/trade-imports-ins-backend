@@ -36,9 +36,12 @@ public class AggregatedNotificationQueryService {
             log.debug("Fetching notification by reference {} for dashboard", trimmedReference);
             Optional<AggregatedNotification> match =
                 repository.findByReferenceNumberAndStatusNot(trimmedReference, DELETED_STATUS);
+            // Always report the singleton match as page 1 of 1, regardless of the requested page,
+            // so page/totalPages stay consistent with the single-result content.
+            Pageable firstPage = PageRequest.of(0, listPageSize, pageable.getSort());
             Page<AggregatedNotification> matched = match
-                .<Page<AggregatedNotification>>map(notification -> new PageImpl<>(List.of(notification), pageable, 1))
-                .orElseGet(() -> Page.empty(pageable));
+                .<Page<AggregatedNotification>>map(notification -> new PageImpl<>(List.of(notification), firstPage, 1))
+                .orElseGet(() -> Page.empty(firstPage));
             return AggregatedNotificationPageResponse.from(matched);
         }
 

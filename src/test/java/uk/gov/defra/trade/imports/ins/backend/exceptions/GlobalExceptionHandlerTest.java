@@ -4,10 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.Path;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -73,6 +77,51 @@ class GlobalExceptionHandlerTest {
 
         // When
         ProblemDetail problemDetail = exceptionHandler.handleValidationException(exception);
+
+        // Then
+        assertThat(problemDetail).isNotNull();
+        assertThat(problemDetail.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        // When traceId is null, the property is never set, so properties may be null or not contain traceId
+        Map<String, Object> properties = problemDetail.getProperties();
+        if (properties != null) {
+            assertThat(properties).doesNotContainKey("traceId");
+        }
+    }
+
+    @Test
+    void handleConstraintViolationException_shouldReturnBadRequestWithFieldErrors() {
+        // Given
+        String traceId = "test-trace-321";
+        MDC.put("trace.id", traceId);
+        ConstraintViolationException exception = createConstraintViolationException(
+            "findAll.page", "must be greater than or equal to 1");
+
+        // When
+        ProblemDetail problemDetail = exceptionHandler.handleConstraintViolationException(exception);
+
+        // Then
+        assertThat(problemDetail).isNotNull();
+        assertThat(problemDetail.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problemDetail.getTitle()).isEqualTo("Validation Error");
+        assertThat(problemDetail.getDetail()).isEqualTo("Validation failed for one or more fields");
+        assertThat(problemDetail.getType()).isEqualTo(URI.create("https://api.cdp.defra.cloud/problems/validation-error"));
+        assertThat(problemDetail.getProperties()).containsKey("traceId");
+        assertThat(problemDetail.getProperties().get("traceId")).isEqualTo(traceId);
+
+        @SuppressWarnings("unchecked")
+        Map<String, String> errors = (Map<String, String>) problemDetail.getProperties().get("errors");
+        assertThat(errors).hasSize(1);
+        assertThat(errors.get("page")).isEqualTo("must be greater than or equal to 1");
+    }
+
+    @Test
+    void handleConstraintViolationException_shouldHandleNullTraceId() {
+        // Given - no trace ID in MDC
+        ConstraintViolationException exception = createConstraintViolationException(
+            "findAll.page", "must be greater than or equal to 1");
+
+        // When
+        ProblemDetail problemDetail = exceptionHandler.handleConstraintViolationException(exception);
 
         // Then
         assertThat(problemDetail).isNotNull();
@@ -222,6 +271,19 @@ class GlobalExceptionHandlerTest {
         if (properties != null) {
             assertThat(properties).doesNotContainKey("traceId");
         }
+    }
+
+    private ConstraintViolationException createConstraintViolationException(
+            String propertyPath, String message) {
+        Path path = mock(Path.class);
+        when(path.toString()).thenReturn(propertyPath);
+
+        @SuppressWarnings("unchecked")
+        ConstraintViolation<Object> violation = mock(ConstraintViolation.class);
+        when(violation.getPropertyPath()).thenReturn(path);
+        when(violation.getMessage()).thenReturn(message);
+
+        return new ConstraintViolationException(Set.of(violation));
     }
 
     private MethodArgumentNotValidException createValidationException(FieldError... fieldErrors) {

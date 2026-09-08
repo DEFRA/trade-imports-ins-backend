@@ -99,6 +99,24 @@ class AggregatedNotificationQueryServiceTest {
     }
 
     @Test
+    void findAll_withReferenceNumber_reportsFirstPage_regardlessOfRequestedPage() {
+        AggregatedNotification notification = AggregatedNotification.builder()
+            .aggregateId("agg-1")
+            .referenceNumber("GBN-AG-26-001")
+            .status("SUBMITTED")
+            .build();
+        when(repository.findByReferenceNumberAndStatusNot("GBN-AG-26-001", "DELETED"))
+            .thenReturn(Optional.of(notification));
+
+        AggregatedNotificationPageResponse response = service.findAll(3, null, "GBN-AG-26-001");
+
+        assertThat(response.content()).containsExactly(notification);
+        assertThat(response.page()).isEqualTo(1);
+        assertThat(response.totalPages()).isEqualTo(1);
+        assertThat(response.totalElements()).isEqualTo(1L);
+    }
+
+    @Test
     void findAll_referenceNumberIsTrimmedBeforeLookup() {
         when(repository.findByReferenceNumberAndStatusNot("GBN-AG-26-001", "DELETED"))
             .thenReturn(Optional.empty());

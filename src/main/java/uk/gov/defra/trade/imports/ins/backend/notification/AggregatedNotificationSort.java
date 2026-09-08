@@ -24,8 +24,8 @@ public final class AggregatedNotificationSort {
             return defaultSort();
         }
 
-        String sortField = parts[0].trim();
-        Sort.Direction sortDirection = "asc".equalsIgnoreCase(parts[1].trim())
+        String sortField = parts[0].strip();
+        Sort.Direction sortDirection = "asc".equalsIgnoreCase(parts[1].strip())
             ? Sort.Direction.ASC
             : Sort.Direction.DESC;
 

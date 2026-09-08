@@ -128,5 +128,7 @@ notification:
 
 # SpringDoc / Swagger UI — disabled in deployed environments
 springdoc:
+  api-docs:
+    enabled: false
   swagger-ui:
     enabled: false
