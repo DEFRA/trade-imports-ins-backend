@@ -36,7 +36,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
             assertThat(doc.get().getReferenceNumber()).isEqualTo("GBN-AG-26-001");
             assertThat(doc.get().getStatus()).isEqualTo("DRAFT");
             assertThat(doc.get().getOriginCountry()).isEqualTo("GB");
-            assertThat(doc.get().getCommodity()).isNull();
+            assertThat(doc.get().getCommodity()).isEqualTo("Dog");
             assertThat(doc.get().getAggregateVersion()).isEqualTo(1L);
         });
     }
@@ -82,13 +82,15 @@ class NotificationSqsListenerIT extends IntegrationBase {
             assertThat(repository.findById(AGGREGATE_ID).map(AggregatedNotification::getStatus))
                 .hasValue("DRAFT"));
 
-        // When — submit event arrives
+        // When — submit event arrives, carrying no includedConsignmentItem
         sendToSqs(notificationSubmitted(), AGGREGATE_ID);
 
-        // Then — status must update to SUBMITTED
+        // Then — status must update to SUBMITTED, and the previously stored commodity survives
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
             assertThat(repository.findById(AGGREGATE_ID).map(AggregatedNotification::getStatus))
                 .hasValue("SUBMITTED"));
+        assertThat(repository.findById(AGGREGATE_ID).map(AggregatedNotification::getCommodity))
+            .hasValue("Dog");
     }
 
     @Test
@@ -135,7 +137,8 @@ class NotificationSqsListenerIT extends IntegrationBase {
                   ],
                   "includedConsignmentItem": [
                     { "includedTradeLineItem": [
-                        { "applicableClassification": [{ "classCode": { "value": "01059900" } }] }
+                        { "applicableClassification": [{ "classCode": { "value": "01059900" } }],
+                          "commonName": "Dog" }
                     ]}
                   ]
                 }
