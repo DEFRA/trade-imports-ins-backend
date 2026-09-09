@@ -1,5 +1,7 @@
 package uk.gov.defra.trade.imports.ins.backend.exceptions;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
@@ -54,6 +56,39 @@ public class GlobalExceptionHandler {
     Map<String, String> errors = new HashMap<>();
     for (FieldError error : ex.getBindingResult().getFieldErrors()) {
       errors.put(error.getField(), error.getDefaultMessage());
+    }
+    problemDetail.setProperty("errors", errors);
+
+    return problemDetail;
+  }
+
+  /**
+   * Handle method-parameter validation errors from {@code @Validated} controllers (400 Bad Request).
+   */
+  @ExceptionHandler(ConstraintViolationException.class)
+  public ProblemDetail handleConstraintViolationException(ConstraintViolationException ex) {
+    String traceId = MDC.get(MDC_TRACE_ID);
+    log.warn("Constraint violation (trace: {}): {}", traceId, ex.getMessage());
+
+    ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+        HttpStatus.BAD_REQUEST,
+        "Validation failed for one or more fields"
+    );
+
+    problemDetail.setType(URI.create("https://api.cdp.defra.cloud/problems/validation-error"));
+    problemDetail.setTitle("Validation Error");
+
+    if (traceId != null) {
+      problemDetail.setProperty("traceId", traceId);
+    }
+
+    Map<String, String> errors = new HashMap<>();
+    for (ConstraintViolation<?> violation : ex.getConstraintViolations()) {
+      String propertyPath = violation.getPropertyPath().toString();
+      String field = propertyPath.contains(".")
+          ? propertyPath.substring(propertyPath.lastIndexOf('.') + 1)
+          : propertyPath;
+      errors.put(field, violation.getMessage());
     }
     problemDetail.setProperty("errors", errors);
 
