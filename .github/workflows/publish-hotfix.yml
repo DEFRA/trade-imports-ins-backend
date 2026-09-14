@@ -40,3 +40,10 @@ jobs:
         uses: DEFRA/cdp-build-action/build-hotfix@main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  sonarcloud:
+    name: SonarCloud Scan
+    needs: build
+    if: github.actor != 'dependabot[bot]'
+    uses: ./.github/workflows/sonarcloud.yml
+    secrets: inherit
