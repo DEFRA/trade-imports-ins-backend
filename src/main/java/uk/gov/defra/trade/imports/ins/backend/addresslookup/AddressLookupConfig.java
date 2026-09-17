@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.AuthorityUtils;
@@ -89,6 +90,16 @@ class AddressLookupConfig {
         return restClientBuilder
             .baseUrl(properties.apiUrl())
             .requestInterceptor(oauthInterceptor)
+            // Registered after the OAuth2 interceptor, so it sees the header that one attached.
+            // "Access token is missing or invalid" covers both halves, and until now nothing
+            // proved which: that a token was obtained does not prove it reached the gateway.
+            .requestInterceptor((request, body, execution) -> {
+                String authorization = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+                log.info("Calling the lookup with authorization={}",
+                    authorization == null ? "ABSENT"
+                        : authorization.split(" ")[0] + ", token length " + (authorization.length() - 7));
+                return execution.execute(request, body);
+            })
             .build();
     }
 }
