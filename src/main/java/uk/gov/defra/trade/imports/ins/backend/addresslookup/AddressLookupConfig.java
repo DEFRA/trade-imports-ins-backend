@@ -1,6 +1,7 @@
 package uk.gov.defra.trade.imports.ins.backend.addresslookup;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -38,6 +39,7 @@ import org.springframework.web.client.RestClient;
 @Profile({"dev", "local"})
 @EnableConfigurationProperties(AddressLookupProperties.class)
 @Import(FederatedTokenConfig.class)
+@Slf4j
 class AddressLookupConfig {
 
     /**
@@ -55,6 +57,15 @@ class AddressLookupConfig {
         OAuth2AuthorizedClientManager addressLookupAuthorizedClientManager,
         AddressLookupProperties properties,
         ObjectMapper objectMapper) {
+        // In dev the likeliest failure is configuration rather than code, and a wrong value shows
+        // up as a refusal from Entra or the gateway that looks like something else. Identifiers
+        // only — no token, assertion or secret is ever logged.
+        log.info("Address lookup spike enabled: apiUrl={} tenantId={} clientId={} scope={} maxResults={} "
+                + "defaultPostcode={} stsEndpointOverride={}",
+            properties.apiUrl(), properties.tenantId(), properties.clientId(), properties.clientScope(),
+            properties.maxResults(), properties.defaultPostcode(),
+            properties.stsEndpointOverride() == null || properties.stsEndpointOverride().isBlank()
+                ? "none (real AWS STS)" : properties.stsEndpointOverride());
         return new AddressLookupClient(
             createAddressLookupRestClient(
                 restClientBuilder.clone(), addressLookupAuthorizedClientManager, properties),

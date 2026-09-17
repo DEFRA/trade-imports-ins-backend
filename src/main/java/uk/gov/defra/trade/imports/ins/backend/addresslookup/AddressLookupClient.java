@@ -26,13 +26,17 @@ class AddressLookupClient {
     AddressLookupResponse lookupByPostcode(String postcode) {
         AddressLookupResponse.Query query =
             new AddressLookupResponse.Query(AddressLookupResponse.Mode.POSTCODE, postcode);
+        long start = System.currentTimeMillis();
         try {
-            return restClient.get()
+            AddressLookupResponse response = restClient.get()
                 .uri(uriBuilder -> uriBuilder
                     .queryParam("postcode", postcode)
                     .queryParam("maxresults", properties.maxResults())
                     .build())
-                .exchange((request, response) -> map(query, response));
+                .exchange((request, httpResponse) -> map(query, httpResponse));
+            log.info("Address lookup for postcode={} was {} with {} results in {}ms",
+                postcode, response.outcome(), response.returnedResults(), System.currentTimeMillis() - start);
+            return response;
         } catch (ResourceAccessException ex) {
             log.warn("Address lookup timed out or was unreachable for postcode={}", postcode, ex);
             return AddressLookupResponse.failed(query, AddressLookupResponse.FailureReason.TIMEOUT);
