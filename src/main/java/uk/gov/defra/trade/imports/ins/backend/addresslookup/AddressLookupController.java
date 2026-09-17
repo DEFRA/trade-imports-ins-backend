@@ -38,7 +38,9 @@ class AddressLookupController {
         description = "EUDPA-390 iteration 1 — no query parameters yet; always searches "
             + "the configured default postcode via the federated-credential token chain.")
     AddressLookupResponse lookup() {
-        log.debug("GET /address-lookup (default postcode)");
+        // info, not debug: deployed environments run at info, and a spike nobody can see the start
+        // of is hard to tell apart from one that never ran.
+        log.info("GET /address-lookup, searching the default postcode {}", properties.defaultPostcode());
         return addressLookupClient.lookupByPostcode(properties.defaultPostcode());
     }
 }

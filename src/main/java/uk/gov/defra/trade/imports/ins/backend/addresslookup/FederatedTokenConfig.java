@@ -86,6 +86,15 @@ class FederatedTokenConfig {
                 converters.add(new OAuth2AccessTokenResponseHttpMessageConverter());
             })
             .defaultStatusHandler(new OAuth2ErrorResponseErrorHandler())
+            // This runs only when the cached Entra token has expired, so its absence from the logs
+            // is what says a lookup reused a token rather than minting one.
+            .requestInterceptor((request, body, execution) -> {
+                long start = System.currentTimeMillis();
+                var response = execution.execute(request, body);
+                log.info("Entra token endpoint answered {} in {}ms",
+                    response.getStatusCode().value(), System.currentTimeMillis() - start);
+                return response;
+            })
             .build();
         tokenResponseClient.setRestClient(entraRestClient);
         tokenResponseClient.addParametersConverter(grantRequest -> clientAssertionParameters(addressLookupStsClient, properties));
@@ -93,11 +102,16 @@ class FederatedTokenConfig {
     }
 
     MultiValueMap<String, String> clientAssertionParameters(StsClient stsClient, AddressLookupProperties properties) {
-        String assertion = stsClient.getWebIdentityToken(r -> r
-                .audience(properties.audience())
-                .signingAlgorithm(properties.signingAlgorithm())
-                .durationSeconds(properties.assertionDurationSeconds()))
-            .webIdentityToken();
+        long start = System.currentTimeMillis();
+        var token = stsClient.getWebIdentityToken(r -> r
+            .audience(properties.audience())
+            .signingAlgorithm(properties.signingAlgorithm())
+            .durationSeconds(properties.assertionDurationSeconds()));
+        String assertion = token.webIdentityToken();
+        // The assertion itself is a credential and is never logged; its expiry is enough to show
+        // the hop ran and that the duration we asked for was honoured.
+        log.info("Minted an STS web identity assertion for audience={} in {}ms, expires {}",
+            properties.audience(), System.currentTimeMillis() - start, token.expiration());
 
         MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
         parameters.set(OAuth2ParameterNames.CLIENT_ASSERTION_TYPE, "urn:ietf:params:oauth:client-assertion-type:jwt-bearer");
