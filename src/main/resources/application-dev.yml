@@ -9,7 +9,9 @@ address-lookup:
   tenant-id: ${ADDRESS_LOOKUP_TENANT_ID:6f504113-6b64-43f2-ade9-242e05780007}
   oauth-token-url: ${ADDRESS_LOOKUP_OAUTH_TOKEN_URL:https://login.microsoftonline.com/${address-lookup.tenant-id}/oauth2/v2.0/token}
   client-id: ${ADDRESS_LOOKUP_CLIENT_ID:0efaafa2-150b-47ea-a3fe-8b68b1c0348f}
-  client-scope: ${ADDRESS_LOOKUP_CLIENT_SCOPE:d017379e-c57e-4dbb-9977-50edd2cfcdb2/.default}
+  # api:// prefixed: Entra puts a different aud in the token depending on which form is asked
+  # for, and the gateway's validate-jwt policy matches aud exactly.
+  client-scope: ${ADDRESS_LOOKUP_CLIENT_SCOPE:api://d017379e-c57e-4dbb-9977-50edd2cfcdb2/.default}
   audience: ${ADDRESS_LOOKUP_AUDIENCE:api://AzureADTokenExchange}
   signing-algorithm: ${ADDRESS_LOOKUP_SIGNING_ALGORITHM:RS256}
   assertion-duration-seconds: ${ADDRESS_LOOKUP_ASSERTION_DURATION_SECONDS:900}
