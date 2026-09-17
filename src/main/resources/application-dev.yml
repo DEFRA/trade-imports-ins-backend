@@ -1,0 +1,39 @@
+# CDP dev environment. Active because spring.profiles.active is derived from ENVIRONMENT.
+
+# EUDPA-390 address lookup spike. cdp-app-config supplies these in dev; the fallbacks are the same
+# real values rather than placeholders, so a missing entry there cannot quietly send the call to a
+# host that does not exist in CDP. They are identifiers, not secrets. This file loads only under
+# the dev profile, so no other environment carries them.
+address-lookup:
+  api-url: ${ADDRESS_LOOKUP_API_URL:https://dev-api-gateway.azure.defra.cloud/api/address-lookup/v2.1/addresses}
+  tenant-id: ${ADDRESS_LOOKUP_TENANT_ID:6f504113-6b64-43f2-ade9-242e05780007}
+  oauth-token-url: ${ADDRESS_LOOKUP_OAUTH_TOKEN_URL:https://login.microsoftonline.com/${address-lookup.tenant-id}/oauth2/v2.0/token}
+  client-id: ${ADDRESS_LOOKUP_CLIENT_ID:0efaafa2-150b-47ea-a3fe-8b68b1c0348f}
+  client-scope: ${ADDRESS_LOOKUP_CLIENT_SCOPE:d017379e-c57e-4dbb-9977-50edd2cfcdb2/.default}
+  audience: ${ADDRESS_LOOKUP_AUDIENCE:api://AzureADTokenExchange}
+  signing-algorithm: ${ADDRESS_LOOKUP_SIGNING_ALGORITHM:RS256}
+  assertion-duration-seconds: ${ADDRESS_LOOKUP_ASSERTION_DURATION_SECONDS:900}
+  max-results: ${ADDRESS_LOOKUP_MAX_RESULTS:100}
+  default-postcode: ${ADDRESS_LOOKUP_DEFAULT_POSTCODE:SW1A 1AA}
+  # Blank by default — real dev must reach real AWS STS. Only the workspace stack's compose file
+  # sets APP_AWS_STS_ENDPOINT_OVERRIDE, pointing this at the trade-imports-stub simulator.
+  sts-endpoint-override: ${APP_AWS_STS_ENDPOINT_OVERRIDE:}
+
+# The ClientRegistration Spring Security's OAuth2 client uses. The registration key and the
+# provider key must match each other and FederatedTokenConfig.CLIENT_REGISTRATION_ID — a mismatch
+# silently yields no registration. The client authenticates with a client_assertion added by
+# FederatedTokenConfig's token-response parameters converter rather than a secret, hence
+# client-authentication-method: none.
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          address-lookup:
+            client-id: ${address-lookup.client-id}
+            client-authentication-method: none
+            authorization-grant-type: client_credentials
+            scope: ${address-lookup.client-scope}
+        provider:
+          address-lookup:
+            token-uri: ${address-lookup.oauth-token-url}

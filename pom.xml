@@ -32,6 +32,13 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>bom</artifactId>
+        <version>${amazon.awssdk.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
         <groupId>io.awspring.cloud</groupId>
         <artifactId>spring-cloud-aws-dependencies</artifactId>
         <version>${spring-cloud-aws.version}</version>
@@ -102,22 +109,34 @@
       <artifactId>spring-cloud-aws-starter-sqs</artifactId>
     </dependency>
 
-    <!-- AWS -->
+    <!-- AWS — versions come from the software.amazon.awssdk:bom import above -->
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>cognitoidentity</artifactId>
-      <version>${amazon.awssdk.version}</version>
     </dependency>
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>sts</artifactId>
-      <version>${amazon.awssdk.version}</version>
-      <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>software.amazon.cloudwatchlogs</groupId>
       <artifactId>aws-embedded-metrics</artifactId>
       <version>4.2.0</version>
+    </dependency>
+
+    <!-- EUDPA-390: federated-credential token exchange for the address lookup spike.
+         Bare oauth2-client, not the starter — see plan D4 (avoids Boot's default HTTP Basic). -->
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-oauth2-client</artifactId>
+    </dependency>
+    <!-- Required by Boot's OAuth2 client auto-configuration: OAuth2ClientPropertiesMapper reaches
+         for CommonOAuth2Provider, which ships here, for every registration it builds. Boot's
+         default web security is switched off by the spring.autoconfigure.exclude list in
+         application.yml, so this brings no inbound security with it. -->
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-config</artifactId>
     </dependency>
 
     <dependency>
