@@ -5,6 +5,25 @@ server:
 spring:
   application:
     name: trade-imports-ins-backend
+  # Profiles are named after CDP environments, so an application-<profile>.yml is also live in the
+  # CDP environment of that name — an application-test.yml added to mean "for unit tests" would
+  # take effect in the CDP test environment.
+  profiles:
+    active: ${ENVIRONMENT:local}
+  # spring-security-config is on the classpath for the OAuth2 client we call *out* with, and Boot
+  # would otherwise secure every endpoint behind a generated password. With these excluded no
+  # SecurityFilterChain bean is created at all, so the servlet stack stays exactly as it was.
+  # ManagementWebSecurityAutoConfiguration is easy to miss: it runs before SecurityAutoConfiguration
+  # and builds a chain that permits /health but leaves everything else authenticated.
+  # OAuth2ClientWebSecurityAutoConfiguration is easier still: having the OAuth2 client on the
+  # classpath is enough for it to add a chain of its own. A new Boot default-security
+  # auto-configuration would have to be added here too.
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration
+      - org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientWebSecurityAutoConfiguration
   threads:
     virtual:
       enabled: true
