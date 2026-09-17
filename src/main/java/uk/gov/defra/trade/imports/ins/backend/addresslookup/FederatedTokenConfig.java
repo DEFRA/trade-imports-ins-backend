@@ -1,6 +1,10 @@
 package uk.gov.defra.trade.imports.ins.backend.addresslookup;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -98,7 +102,34 @@ class FederatedTokenConfig {
             .build();
         tokenResponseClient.setRestClient(entraRestClient);
         tokenResponseClient.addParametersConverter(grantRequest -> clientAssertionParameters(addressLookupStsClient, properties));
-        return tokenResponseClient;
+        return grantRequest -> {
+            var response = tokenResponseClient.getTokenResponse(grantRequest);
+            logTokenClaims(response.getAccessToken().getTokenValue());
+            return response;
+        };
+    }
+
+    /**
+     * An APIM {@code validate-jwt} policy matches {@code aud} and {@code iss} exactly, and a
+     * rejection says only "missing or invalid" — so the claims we present are the one thing worth
+     * being able to read from the logs. The token itself is a credential and is never logged.
+     */
+    private static void logTokenClaims(String accessToken) {
+        try {
+            String[] segments = accessToken.split("\\.");
+            if (segments.length < 2) {
+                log.warn("Entra access token is not a JWT, so its claims cannot be logged");
+                return;
+            }
+            byte[] payload = Base64.getUrlDecoder().decode(segments[1]);
+            JsonNode claims = new ObjectMapper().readTree(new String(payload, StandardCharsets.UTF_8));
+            log.info("Entra access token claims: aud={} iss={} appid={} azp={} roles={} exp={}",
+                claims.path("aud").asText(null), claims.path("iss").asText(null),
+                claims.path("appid").asText(null), claims.path("azp").asText(null),
+                claims.path("roles"), claims.path("exp").asText(null));
+        } catch (RuntimeException | com.fasterxml.jackson.core.JsonProcessingException ex) {
+            log.warn("Could not read the Entra access token's claims", ex);
+        }
     }
 
     MultiValueMap<String, String> clientAssertionParameters(StsClient stsClient, AddressLookupProperties properties) {
