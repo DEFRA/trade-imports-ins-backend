@@ -55,7 +55,7 @@ class AddressLookupMapper {
         try {
             AddressLookupErrorResponse error = objectMapper.readValue(body, AddressLookupErrorResponse.class);
             return error.message() != null && error.message().startsWith(REJECTED_POSTCODE_PREFIX);
-        } catch (JsonProcessingException ex) {
+        } catch (JsonProcessingException _) {
             return false;
         }
     }

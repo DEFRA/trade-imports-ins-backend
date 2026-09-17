@@ -23,6 +23,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sts.StsClient;
 
@@ -48,7 +49,11 @@ class FederatedTokenConfig {
 
     @Bean
     StsClient addressLookupStsClient(@Value("${aws.region}") String region, AddressLookupProperties properties) {
-        var builder = StsClient.builder().region(Region.of(region));
+        var builder = StsClient.builder()
+            .region(Region.of(region))
+            // Explicit, though it is the SDK default: in CDP the container credentials are what
+            // make the assertion's sub the service's own role ARN.
+            .credentialsProvider(DefaultCredentialsProvider.builder().build());
         if (StringUtils.hasText(properties.stsEndpointOverride())) {
             log.info("Using STS endpoint override for the address lookup spike: {}", properties.stsEndpointOverride());
             builder.endpointOverride(URI.create(properties.stsEndpointOverride()));
