@@ -22,6 +22,7 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import software.amazon.awssdk.core.exception.SdkClientException;
 
 /**
  * Unit-tests {@link AddressLookupClient} against a mocked lookup endpoint. The
@@ -150,6 +151,22 @@ class AddressLookupClientTest {
 
         assertThat(response.outcome()).isEqualTo(AddressLookupResponse.Outcome.FAILED);
         assertThat(response.failureReason()).isEqualTo(AddressLookupResponse.FailureReason.TOKEN_FAILED);
+    }
+
+    @Test
+    void lookupByPostcode_shouldFail_whenTheStsAssertionCannotBeMinted() {
+        // The STS hop runs inside the token exchange. Its failure used to escape as a 500 that
+        // said nothing about which hop broke; the usual cause is a native run with no AWS
+        // credentials on the environment.
+        OAuth2AuthorizedClientManager failingManager = authorizeRequest -> {
+            throw SdkClientException.create("Unable to load credentials from any of the providers in the chain");
+        };
+        AddressLookupClient client = client(RestClient.builder(), failingManager);
+
+        AddressLookupResponse response = client.lookupByPostcode("SW1A 1AA");
+
+        assertThat(response.outcome()).isEqualTo(AddressLookupResponse.Outcome.FAILED);
+        assertThat(response.failureReason()).isEqualTo(AddressLookupResponse.FailureReason.STS_FAILED);
     }
 
     private static AddressLookupClient client(

@@ -6,6 +6,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.security.oauth2.core.OAuth2AuthorizationException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import software.amazon.awssdk.core.exception.SdkException;
 
 @Slf4j
 class AddressLookupClient {
@@ -43,6 +44,13 @@ class AddressLookupClient {
         } catch (OAuth2AuthorizationException ex) {
             log.warn("Address lookup token exchange failed for postcode={}", postcode, ex);
             return AddressLookupResponse.failed(query, AddressLookupResponse.FailureReason.TOKEN_FAILED);
+        } catch (SdkException ex) {
+            // The STS hop, which runs inside the token exchange rather than the GET. Without this
+            // the whole endpoint answers 500 and says nothing about which of the three hops broke.
+            // Running outside the stack with no AWS credentials on the environment is the usual
+            // cause: DefaultCredentialsProvider finds nothing to sign GetWebIdentityToken with.
+            log.warn("Address lookup could not mint an STS assertion for postcode={}", postcode, ex);
+            return AddressLookupResponse.failed(query, AddressLookupResponse.FailureReason.STS_FAILED);
         }
     }
 

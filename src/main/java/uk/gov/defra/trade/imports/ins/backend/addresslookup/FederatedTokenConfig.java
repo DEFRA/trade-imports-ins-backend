@@ -27,7 +27,9 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sts.StsClient;
 
@@ -53,14 +55,21 @@ class FederatedTokenConfig {
 
     @Bean
     StsClient addressLookupStsClient(@Value("${aws.region}") String region, AddressLookupProperties properties) {
-        var builder = StsClient.builder()
-            .region(Region.of(region))
-            // Explicit, though it is the SDK default: in CDP the container credentials are what
-            // make the assertion's sub the service's own role ARN.
-            .credentialsProvider(DefaultCredentialsProvider.builder().build());
+        var builder = StsClient.builder().region(Region.of(region));
         if (StringUtils.hasText(properties.stsEndpointOverride())) {
             log.info("Using STS endpoint override for the address lookup spike: {}", properties.stsEndpointOverride());
             builder.endpointOverride(URI.create(properties.stsEndpointOverride()));
+            // The override only ever points at the simulator, which does not check the signature.
+            // The SDK still signs the request though, so DefaultCredentialsProvider would fail
+            // outright when nothing supplies credentials — which is every native run, since
+            // AWS_ACCESS_KEY_ID comes from the environment and no Spring property can set it.
+            // Placeholders keep the simulator usable from an IDE with no AWS setup at all.
+            builder.credentialsProvider(
+                StaticCredentialsProvider.create(AwsBasicCredentials.create("simulator", "simulator")));
+        } else {
+            // Explicit, though it is the SDK default: in CDP the container credentials are what
+            // make the assertion's sub the service's own role ARN.
+            builder.credentialsProvider(DefaultCredentialsProvider.builder().build());
         }
         return builder.build();
     }

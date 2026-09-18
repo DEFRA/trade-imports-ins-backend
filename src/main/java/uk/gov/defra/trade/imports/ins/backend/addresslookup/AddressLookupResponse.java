@@ -66,6 +66,7 @@ public record AddressLookupResponse(
         HTTP_503,
         NON_JSON_200,
         TIMEOUT,
+        STS_FAILED,
         TOKEN_FAILED,
         UNKNOWN
     }

@@ -13,6 +13,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.util.MultiValueMap;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.model.GetWebIdentityTokenRequest;
 import software.amazon.awssdk.services.sts.model.GetWebIdentityTokenResponse;
@@ -43,6 +46,30 @@ class FederatedTokenConfigTest {
 
         // Then
         assertThat(client.serviceClientConfiguration().endpointOverride()).contains(override);
+        client.close();
+    }
+
+    @Test
+    void addressLookupStsClient_shouldSupplyPlaceholderCredentials_whenPointedAtTheSimulator() {
+        // A native run has no AWS credentials on its environment, and no Spring property can
+        // supply them. The SDK signs the request whatever the endpoint is, so without this the
+        // simulator is unusable outside the stack.
+        StsClient client = federatedTokenConfig.addressLookupStsClient(
+            "eu-west-2", properties("http://localhost:8098"));
+
+        AwsCredentials credentials =
+            ((AwsCredentialsProvider) client.serviceClientConfiguration().credentialsProvider()).resolveCredentials();
+        assertThat(credentials.accessKeyId()).isEqualTo("simulator");
+        client.close();
+    }
+
+    @Test
+    void addressLookupStsClient_shouldUseTheDefaultCredentialsChain_whenCallingRealAws() {
+        // In CDP the container credentials are what make the assertion's sub the service's role.
+        StsClient client = federatedTokenConfig.addressLookupStsClient("eu-west-2", properties(null));
+
+        assertThat(client.serviceClientConfiguration().credentialsProvider())
+            .isInstanceOf(DefaultCredentialsProvider.class);
         client.close();
     }
 
