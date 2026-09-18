@@ -12,7 +12,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
@@ -154,6 +159,44 @@ class AddressLookupClientTest {
     }
 
     @Test
+    void lookupByPostcode_shouldEvictTheCachedTokenAndSucceed_whenTheFirstCallIs401() {
+        OAuth2AuthorizedClientService authorizedClientService = authorizedClientService();
+        authorizedClientService.saveAuthorizedClient(authorizedClient(), principal());
+        mockServer.expect(method(HttpMethod.GET))
+            .andRespond(withStatus(HttpStatus.UNAUTHORIZED).contentType(MediaType.APPLICATION_JSON)
+                .body("{ \"statusCode\": 401, \"message\": \"Unauthorized. Access token is missing or invalid.\" }"));
+        mockServer.expect(method(HttpMethod.GET))
+            .andRespond(withStatus(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body("""
+                { "header": { "totalResults": "1" }, "results": [ { "addressLine": "BUCKINGHAM PALACE, LONDON, SW1A 1AA" } ] }
+                """));
+        AddressLookupClient client = client(restClientBuilder, fixedTokenManager(), authorizedClientService);
+
+        AddressLookupResponse response = client.lookupByPostcode("SW1A 1AA");
+
+        assertThat(response.outcome()).isEqualTo(AddressLookupResponse.Outcome.RESULTS);
+        OAuth2AuthorizedClient cached = authorizedClientService.loadAuthorizedClient(
+            FederatedTokenConfig.CLIENT_REGISTRATION_ID, FederatedTokenConfig.CLIENT_REGISTRATION_ID);
+        assertThat(cached).isNull();
+        mockServer.verify();
+    }
+
+    @Test
+    void lookupByPostcode_shouldRetryOnlyOnce_whenTheSecondCallIsAlso401() {
+        // A second 401 is not a stale token — a wrong audience answers identically, and the whole
+        // estate shares 300 requests a minute.
+        mockServer.expect(method(HttpMethod.GET))
+            .andRespond(withStatus(HttpStatus.UNAUTHORIZED).contentType(MediaType.APPLICATION_JSON).body("{}"));
+        mockServer.expect(method(HttpMethod.GET))
+            .andRespond(withStatus(HttpStatus.UNAUTHORIZED).contentType(MediaType.APPLICATION_JSON).body("{}"));
+
+        AddressLookupResponse response = addressLookupClient.lookupByPostcode("SW1A 1AA");
+
+        assertThat(response.outcome()).isEqualTo(AddressLookupResponse.Outcome.FAILED);
+        assertThat(response.failureReason()).isEqualTo(AddressLookupResponse.FailureReason.HTTP_401);
+        mockServer.verify();
+    }
+
+    @Test
     void lookupByPostcode_shouldFail_whenTheStsAssertionCannotBeMinted() {
         // The STS hop runs inside the token exchange. Its failure used to escape as a 500 that
         // said nothing about which hop broke; the usual cause is a native run with no AWS
@@ -171,11 +214,38 @@ class AddressLookupClientTest {
 
     private static AddressLookupClient client(
         RestClient.Builder restClientBuilder, OAuth2AuthorizedClientManager authorizedClientManager) {
+        return client(restClientBuilder, authorizedClientManager, authorizedClientService());
+    }
+
+    private static AddressLookupClient client(
+        RestClient.Builder restClientBuilder,
+        OAuth2AuthorizedClientManager authorizedClientManager,
+        OAuth2AuthorizedClientService authorizedClientService) {
         AddressLookupProperties properties = properties();
         return new AddressLookupClient(
             AddressLookupConfig.createAddressLookupRestClient(restClientBuilder, authorizedClientManager, properties),
             properties,
-            new AddressLookupMapper(new ObjectMapper()));
+            new AddressLookupMapper(new ObjectMapper()),
+            authorizedClientService);
+    }
+
+    private static OAuth2AuthorizedClientService authorizedClientService() {
+        return new InMemoryOAuth2AuthorizedClientService(registrationId -> registration());
+    }
+
+    /** The same application-scoped principal {@link AddressLookupConfig} resolves for every call. */
+    private static Authentication principal() {
+        return new AnonymousAuthenticationToken(
+            FederatedTokenConfig.CLIENT_REGISTRATION_ID,
+            FederatedTokenConfig.CLIENT_REGISTRATION_ID,
+            AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS"));
+    }
+
+    private static OAuth2AuthorizedClient authorizedClient() {
+        OAuth2AccessToken accessToken = new OAuth2AccessToken(
+            OAuth2AccessToken.TokenType.BEARER, "stale-access-token", Instant.now(), Instant.now().plusSeconds(3600));
+        return new OAuth2AuthorizedClient(
+            registration(), FederatedTokenConfig.CLIENT_REGISTRATION_ID, accessToken);
     }
 
     private static AddressLookupProperties properties() {
@@ -193,12 +263,16 @@ class AddressLookupClientTest {
             null);
     }
 
-    private static OAuth2AuthorizedClientManager fixedTokenManager() {
-        ClientRegistration registration = ClientRegistration.withRegistrationId(FederatedTokenConfig.CLIENT_REGISTRATION_ID)
+    private static ClientRegistration registration() {
+        return ClientRegistration.withRegistrationId(FederatedTokenConfig.CLIENT_REGISTRATION_ID)
             .clientId("22222222-2222-2222-2222-222222222222")
             .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
             .tokenUri("http://localhost:8087/simulator/entra/token")
             .build();
+    }
+
+    private static OAuth2AuthorizedClientManager fixedTokenManager() {
+        ClientRegistration registration = registration();
         OAuth2AccessToken accessToken = new OAuth2AccessToken(
             OAuth2AccessToken.TokenType.BEARER, "test-access-token", Instant.now(), Instant.now().plusSeconds(3600));
         OAuth2AuthorizedClient authorizedClient = new OAuth2AuthorizedClient(registration, "system", accessToken);

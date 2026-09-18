@@ -3,6 +3,7 @@ package uk.gov.defra.trade.imports.ins.backend.addresslookup;
 import java.io.IOException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.core.OAuth2AuthorizationException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
@@ -16,12 +17,17 @@ class AddressLookupClient {
     private final RestClient restClient;
     private final AddressLookupProperties properties;
     private final AddressLookupMapper mapper;
+    private final OAuth2AuthorizedClientService authorizedClientService;
 
     AddressLookupClient(
-        RestClient restClient, AddressLookupProperties properties, AddressLookupMapper mapper) {
+        RestClient restClient,
+        AddressLookupProperties properties,
+        AddressLookupMapper mapper,
+        OAuth2AuthorizedClientService authorizedClientService) {
         this.restClient = restClient;
         this.properties = properties;
         this.mapper = mapper;
+        this.authorizedClientService = authorizedClientService;
     }
 
     AddressLookupResponse lookupByPostcode(String postcode) {
@@ -29,12 +35,10 @@ class AddressLookupClient {
             new AddressLookupResponse.Query(AddressLookupResponse.Mode.POSTCODE, postcode);
         long start = System.currentTimeMillis();
         try {
-            AddressLookupResponse response = restClient.get()
-                .uri(uriBuilder -> uriBuilder
-                    .queryParam("postcode", postcode)
-                    .queryParam("maxresults", properties.maxResults())
-                    .build())
-                .exchange((request, httpResponse) -> map(query, httpResponse));
+            AddressLookupResponse response = get(query, postcode);
+            if (response.failureReason() == AddressLookupResponse.FailureReason.HTTP_401) {
+                response = retryWithAFreshToken(query, postcode);
+            }
             log.info("Address lookup for postcode={} was {} with {} results in {}ms",
                 postcode, response.outcome(), response.returnedResults(), System.currentTimeMillis() - start);
             return response;
@@ -52,6 +56,32 @@ class AddressLookupClient {
             log.warn("Address lookup could not mint an STS assertion for postcode={}", postcode, ex);
             return AddressLookupResponse.failed(query, AddressLookupResponse.FailureReason.STS_FAILED);
         }
+    }
+
+    private AddressLookupResponse get(AddressLookupResponse.Query query, String postcode) {
+        return restClient.get()
+            .uri(uriBuilder -> uriBuilder
+                .queryParam("postcode", postcode)
+                .queryParam("maxresults", properties.maxResults())
+                .build())
+            .exchange((request, httpResponse) -> map(query, httpResponse));
+    }
+
+    /**
+     * Spring refreshes the token when it expires, but a token can stop being accepted before then —
+     * a revoked registration, or a changed gateway policy. The cached one is then handed out on
+     * every call until its own expiry, which is an hour of 401s with no token hops in the logs to
+     * explain them. Dropping the cached client makes the next call mint a fresh one.
+     *
+     * <p>Once only, and only for a 401. A second 401 means the token is not the problem — a wrong
+     * audience answers exactly the same way — and retrying further would just double every failing
+     * call against a service the whole estate shares 300 requests a minute of.
+     */
+    private AddressLookupResponse retryWithAFreshToken(AddressLookupResponse.Query query, String postcode) {
+        log.warn("Address lookup was refused with 401; evicting the cached token and retrying once");
+        authorizedClientService.removeAuthorizedClient(
+            FederatedTokenConfig.CLIENT_REGISTRATION_ID, FederatedTokenConfig.CLIENT_REGISTRATION_ID);
+        return get(query, postcode);
     }
 
     private AddressLookupResponse map(

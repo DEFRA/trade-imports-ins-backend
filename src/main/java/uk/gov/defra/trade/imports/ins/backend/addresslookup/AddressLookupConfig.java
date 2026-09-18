@@ -12,6 +12,7 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.web.client.OAuth2ClientHttpRequestInterceptor;
 import org.springframework.web.client.RestClient;
 
@@ -56,6 +57,7 @@ class AddressLookupConfig {
     AddressLookupClient addressLookupClient(
         RestClient.Builder restClientBuilder,
         OAuth2AuthorizedClientManager addressLookupAuthorizedClientManager,
+        OAuth2AuthorizedClientService addressLookupAuthorizedClientService,
         AddressLookupProperties properties,
         ObjectMapper objectMapper) {
         // In dev the likeliest failure is configuration rather than code, and a wrong value shows
@@ -71,7 +73,8 @@ class AddressLookupConfig {
             createAddressLookupRestClient(
                 restClientBuilder.clone(), addressLookupAuthorizedClientManager, properties),
             properties,
-            new AddressLookupMapper(objectMapper));
+            new AddressLookupMapper(objectMapper),
+            addressLookupAuthorizedClientService);
     }
 
     /**

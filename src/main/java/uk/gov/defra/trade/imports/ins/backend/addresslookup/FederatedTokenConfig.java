@@ -159,18 +159,17 @@ class FederatedTokenConfig {
         return parameters;
     }
 
-    /**
-     * Client-credentials tokens are application-scoped, not request-scoped, so this is
-     * {@link AuthorizedClientServiceOAuth2AuthorizedClientManager} rather than the servlet
-     * {@code DefaultOAuth2AuthorizedClientManager}. Boot would publish a manager for us if
-     * OAuth2 web security were on; it is excluded (D4c), so the manager is explicit.
-     */
+    @Bean
+    OAuth2AuthorizedClientService addressLookupAuthorizedClientService(
+        ClientRegistrationRepository clientRegistrationRepository) {
+        return new InMemoryOAuth2AuthorizedClientService(clientRegistrationRepository);
+    }
+
     @Bean
     OAuth2AuthorizedClientManager addressLookupAuthorizedClientManager(
         ClientRegistrationRepository clientRegistrationRepository,
+        OAuth2AuthorizedClientService authorizedClientService,
         OAuth2AccessTokenResponseClient<OAuth2ClientCredentialsGrantRequest> addressLookupTokenResponseClient) {
-        OAuth2AuthorizedClientService authorizedClientService =
-            new InMemoryOAuth2AuthorizedClientService(clientRegistrationRepository);
         var authorizedClientProvider = OAuth2AuthorizedClientProviderBuilder.builder()
             .clientCredentials(configurer -> configurer.accessTokenResponseClient(addressLookupTokenResponseClient))
             .build();
