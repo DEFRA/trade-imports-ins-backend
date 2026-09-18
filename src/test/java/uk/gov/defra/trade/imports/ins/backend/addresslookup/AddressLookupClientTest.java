@@ -48,9 +48,9 @@ class AddressLookupClientTest {
                 {
                   "header": { "totalResults": "3" },
                   "results": [
-                    { "addressLine": "1 Downing Street, London, SW1A 2AA", "buildingNumber": "1", "postcode": "SW1A 2AA" },
-                    { "addressLine": "Flat A, Downing Street, London, SW1A 2AA", "buildingName": "Flat A", "postcode": "SW1A 2AA" },
-                    { "addressLine": "Unit 1, Downing House, Downing Street, London, SW1A 2AA", "subBuildingName": "Unit 1", "buildingName": "Downing House", "postcode": "SW1A 2AA" }
+                    { "addressLine": "1 DOWNING STREET, LONDON, SW1A 2AA", "buildingNumber": "1", "postcode": "SW1A 2AA" },
+                    { "addressLine": "FLAT A, DOWNING STREET, LONDON, SW1A 2AA", "buildingName": "FLAT A", "postcode": "SW1A 2AA" },
+                    { "addressLine": "UNIT 1, DOWNING HOUSE, DOWNING STREET, LONDON, SW1A 2AA", "subBuildingName": "UNIT 1", "buildingName": "DOWNING HOUSE", "postcode": "SW1A 2AA" }
                   ]
                 }
                 """));
@@ -60,7 +60,7 @@ class AddressLookupClientTest {
         assertThat(response.outcome()).isEqualTo(AddressLookupResponse.Outcome.RESULTS);
         assertThat(response.query()).isEqualTo(new AddressLookupResponse.Query(AddressLookupResponse.Mode.POSTCODE, "SW1A 1AA"));
         assertThat(response.results()).hasSize(3);
-        assertThat(response.results().getFirst().addressLine()).isEqualTo("1 Downing Street, London, SW1A 2AA");
+        assertThat(response.results().getFirst().addressLine()).isEqualTo("1 DOWNING STREET, LONDON, SW1A 2AA");
         assertThat(response.results().getFirst().buildingNumber()).isEqualTo("1");
         assertThat(response.results().getFirst().postcode()).isEqualTo("SW1A 2AA");
         assertThat(response.totalResults()).isEqualTo(3);

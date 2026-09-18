@@ -46,17 +46,17 @@ class AddressLookupControllerTest {
         AddressLookupResponse expected = AddressLookupResponse.results(
             new AddressLookupResponse.Query(AddressLookupResponse.Mode.POSTCODE, "SW1A 1AA"),
             List.of(new AddressLookupResponse.Address(
-                "1 Downing Street, London, SW1A 2AA",
+                "1 DOWNING STREET, LONDON, SW1A 2AA",
                 "1",
                 null,
                 null,
-                "Downing Street",
+                "DOWNING STREET",
                 null,
-                "London",
+                "LONDON",
                 "SW1A 2AA",
-                "England",
+                "ENGLAND",
                 "100023336901",
-                "1.0",
+                "1",
                 "EXACT",
                 "EN",
                 null,
@@ -70,7 +70,7 @@ class AddressLookupControllerTest {
             .andExpect(jsonPath("$.outcome").value("RESULTS"))
             .andExpect(jsonPath("$.query.mode").value("POSTCODE"))
             .andExpect(jsonPath("$.query.term").value("SW1A 1AA"))
-            .andExpect(jsonPath("$.results[0].addressLine").value("1 Downing Street, London, SW1A 2AA"))
+            .andExpect(jsonPath("$.results[0].addressLine").value("1 DOWNING STREET, LONDON, SW1A 2AA"))
             .andExpect(jsonPath("$.totalResults").value(3))
             .andExpect(jsonPath("$.returnedResults").value(1));
 
