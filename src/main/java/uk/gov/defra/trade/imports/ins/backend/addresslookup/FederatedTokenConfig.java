@@ -104,8 +104,9 @@ class FederatedTokenConfig {
             .requestInterceptor((request, body, execution) -> {
                 long start = System.currentTimeMillis();
                 var response = execution.execute(request, body);
-                log.info("Entra token endpoint answered {} in {}ms",
-                    response.getStatusCode().value(), System.currentTimeMillis() - start);
+                long elapsed = System.currentTimeMillis() - start;
+                LookupTimingsRecorder.recordEntra(elapsed);
+                log.info("Entra token endpoint answered {} in {}ms", response.getStatusCode().value(), elapsed);
                 return response;
             })
             .build();
@@ -148,10 +149,12 @@ class FederatedTokenConfig {
             .signingAlgorithm(properties.signingAlgorithm())
             .durationSeconds(properties.assertionDurationSeconds()));
         String assertion = token.webIdentityToken();
+        long elapsed = System.currentTimeMillis() - start;
+        LookupTimingsRecorder.recordSts(elapsed);
         // The assertion itself is a credential and is never logged; its expiry is enough to show
         // the hop ran and that the duration we asked for was honoured.
         log.info("Minted an STS web identity assertion for audience={} in {}ms, expires {}",
-            properties.audience(), System.currentTimeMillis() - start, token.expiration());
+            properties.audience(), elapsed, token.expiration());
 
         MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
         parameters.set(OAuth2ParameterNames.CLIENT_ASSERTION_TYPE, "urn:ietf:params:oauth:client-assertion-type:jwt-bearer");

@@ -120,6 +120,7 @@ management:
     enable:
       all: false
       controller: true
+      "[addressLookup]": true
       jvm:
         memory:
           committed: true
@@ -132,6 +133,12 @@ management:
         server:
           requests:
             active: true
+  # Only the local stack's opt-in monitoring profile uses Prometheus; application-local.yml
+  # turns it on. Everywhere else keeps the plain registry EmfMetricsPublisher reads.
+  prometheus:
+    metrics:
+      export:
+        enabled: false
 
 # Application info (exposed via /info endpoint)
 info:

@@ -71,6 +71,23 @@ class EmfMetricsPublisherTest {
     }
 
     @Test
+    void publishMetrics_shouldResetAddressLookupMeters_soEachFlushIsThatMinutesCount() {
+        // Given
+        SimpleMeterRegistry realRegistry = new SimpleMeterRegistry();
+        realRegistry.counter("addressLookup.searches").increment(3);
+        realRegistry.counter("test.counter").increment();
+
+        EmfMetricsPublisher publisher = new EmfMetricsPublisher(TEST_NAMESPACE, realRegistry);
+
+        // When
+        publisher.publishMetrics();
+
+        // Then
+        assertThat(realRegistry.find("addressLookup.searches").counter()).isNull();
+        assertThat(realRegistry.find("test.counter").counter()).isNotNull();
+    }
+
+    @Test
     void publishMetrics_shouldCollectMetricsFromMeter() {
         // Given
         Meter mockMeter = mock(Meter.class);

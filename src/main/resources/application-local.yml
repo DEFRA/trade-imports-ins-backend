@@ -14,10 +14,19 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,env
+        include: health,info,metrics,env,prometheus
   endpoint:
     health:
       show-details: when-authorized
+  # Off locally: EmfMetricsPublisher has no CloudWatch to reach here, and the meters it removes
+  # after every flush would reset the counters under Prometheus each minute.
+  metrics:
+    enabled: false
+  # Scraped by the workspace stack's opt-in monitoring profile (Prometheus + Grafana).
+  prometheus:
+    metrics:
+      export:
+        enabled: true
 spring:
   data:
     mongodb:

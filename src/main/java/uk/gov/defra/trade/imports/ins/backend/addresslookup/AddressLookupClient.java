@@ -18,53 +18,83 @@ class AddressLookupClient {
     private final AddressLookupProperties properties;
     private final AddressLookupMapper mapper;
     private final OAuth2AuthorizedClientService authorizedClientService;
+    private final AddressLookupMetrics metrics;
 
     AddressLookupClient(
         RestClient restClient,
         AddressLookupProperties properties,
         AddressLookupMapper mapper,
-        OAuth2AuthorizedClientService authorizedClientService) {
+        OAuth2AuthorizedClientService authorizedClientService,
+        AddressLookupMetrics metrics) {
         this.restClient = restClient;
         this.properties = properties;
         this.mapper = mapper;
         this.authorizedClientService = authorizedClientService;
+        this.metrics = metrics;
     }
 
     AddressLookupResponse lookupByPostcode(String postcode) {
-        AddressLookupResponse.Query query =
-            new AddressLookupResponse.Query(AddressLookupResponse.Mode.POSTCODE, postcode);
+        return lookup(AddressLookupResponse.Mode.POSTCODE, postcode);
+    }
+
+    AddressLookupResponse lookupByFind(String find) {
+        return lookup(AddressLookupResponse.Mode.FIND, find);
+    }
+
+    /** One place every search returns through, so no path can skip the metrics. */
+    private AddressLookupResponse lookup(AddressLookupResponse.Mode mode, String term) {
+        AddressLookupResponse response = runSearch(mode, term);
+        metrics.record(response);
+        return response;
+    }
+
+    private AddressLookupResponse runSearch(AddressLookupResponse.Mode mode, String term) {
+        AddressLookupResponse.Query query = new AddressLookupResponse.Query(mode, term);
         long start = System.currentTimeMillis();
+        LookupTimingsRecorder.start();
         try {
-            AddressLookupResponse response = get(query, postcode);
+            AddressLookupResponse response = get(query);
             if (response.failureReason() == AddressLookupResponse.FailureReason.HTTP_401) {
-                response = retryWithAFreshToken(query, postcode);
+                response = retryWithAFreshToken(query);
             }
-            log.info("Address lookup for postcode={} was {} with {} results in {}ms",
-                postcode, response.outcome(), response.returnedResults(), System.currentTimeMillis() - start);
-            return response;
+            log.info("Address lookup for {}={} was {} with {} results in {}ms",
+                mode.parameterName(), term, response.outcome(), response.returnedResults(),
+                System.currentTimeMillis() - start);
+            return response.withTimings(LookupTimingsRecorder.finish());
         } catch (ResourceAccessException ex) {
-            log.warn("Address lookup timed out or was unreachable for postcode={}", postcode, ex);
-            return AddressLookupResponse.failed(query, AddressLookupResponse.FailureReason.TIMEOUT);
+            log.warn("Address lookup timed out or was unreachable for {}={}", mode.parameterName(), term, ex);
+            return AddressLookupResponse.failed(query, AddressLookupResponse.FailureReason.TIMEOUT)
+                .withTimings(LookupTimingsRecorder.finish());
         } catch (OAuth2AuthorizationException ex) {
-            log.warn("Address lookup token exchange failed for postcode={}", postcode, ex);
-            return AddressLookupResponse.failed(query, AddressLookupResponse.FailureReason.TOKEN_FAILED);
+            log.warn("Address lookup token exchange failed for {}={}", mode.parameterName(), term, ex);
+            return AddressLookupResponse.failed(query, AddressLookupResponse.FailureReason.TOKEN_FAILED)
+                .withTimings(LookupTimingsRecorder.finish());
         } catch (SdkException ex) {
             // The STS hop, which runs inside the token exchange rather than the GET. Without this
             // the whole endpoint answers 500 and says nothing about which of the three hops broke.
             // Running outside the stack with no AWS credentials on the environment is the usual
             // cause: DefaultCredentialsProvider finds nothing to sign GetWebIdentityToken with.
-            log.warn("Address lookup could not mint an STS assertion for postcode={}", postcode, ex);
-            return AddressLookupResponse.failed(query, AddressLookupResponse.FailureReason.STS_FAILED);
+            log.warn("Address lookup could not mint an STS assertion for {}={}", mode.parameterName(), term, ex);
+            return AddressLookupResponse.failed(query, AddressLookupResponse.FailureReason.STS_FAILED)
+                .withTimings(LookupTimingsRecorder.finish());
         }
     }
 
-    private AddressLookupResponse get(AddressLookupResponse.Query query, String postcode) {
-        return restClient.get()
-            .uri(uriBuilder -> uriBuilder
-                .queryParam("postcode", postcode)
-                .queryParam("maxresults", properties.maxResults())
-                .build())
-            .exchange((request, httpResponse) -> map(query, httpResponse));
+    private AddressLookupResponse get(AddressLookupResponse.Query query) {
+        // Measured around the whole exchange, which on a cold search includes the token hops the
+        // interceptor runs inside it. LookupTimings takes those back off, so what it reports is
+        // the gateway's own time either way.
+        long start = System.currentTimeMillis();
+        try {
+            return restClient.get()
+                .uri(uriBuilder -> uriBuilder
+                    .queryParam(query.mode().parameterName(), query.term())
+                    .queryParam("maxresults", properties.maxResults())
+                    .build())
+                .exchange((request, httpResponse) -> map(query, httpResponse));
+        } finally {
+            LookupTimingsRecorder.recordLookup(System.currentTimeMillis() - start);
+        }
     }
 
     /**
@@ -77,11 +107,11 @@ class AddressLookupClient {
      * audience answers exactly the same way — and retrying further would just double every failing
      * call against a service the whole estate shares 300 requests a minute of.
      */
-    private AddressLookupResponse retryWithAFreshToken(AddressLookupResponse.Query query, String postcode) {
+    private AddressLookupResponse retryWithAFreshToken(AddressLookupResponse.Query query) {
         log.warn("Address lookup was refused with 401; evicting the cached token and retrying once");
         authorizedClientService.removeAuthorizedClient(
             FederatedTokenConfig.CLIENT_REGISTRATION_ID, FederatedTokenConfig.CLIENT_REGISTRATION_ID);
-        return get(query, postcode);
+        return get(query);
     }
 
     private AddressLookupResponse map(

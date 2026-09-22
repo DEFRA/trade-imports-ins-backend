@@ -20,11 +20,22 @@ public record AddressLookupResponse(
     @Nullable Integer totalResults,
     @Schema(description = "results.size()", requiredMode = RequiredMode.REQUIRED) int returnedResults,
     @Schema(description = "Why the lookup failed, when outcome is FAILED")
-    @Nullable FailureReason failureReason) {
+    @Nullable FailureReason failureReason,
+    @Schema(description = "Elapsed time per hop for this search")
+    @Nullable LookupTimings timings) {
 
     public AddressLookupResponse {
         results = List.copyOf(results);
         returnedResults = results.size();
+    }
+
+    /**
+     * Timings are attached once the search is over, so the factories below can stay about the
+     * outcome and the client can add the measurements in one place.
+     */
+    AddressLookupResponse withTimings(@Nullable LookupTimings newTimings) {
+        return new AddressLookupResponse(
+            outcome, query, results, totalResults, returnedResults, failureReason, newTimings);
     }
 
     static AddressLookupResponse results(Query query, List<Address> addresses, @Nullable Integer totalResults) {
@@ -32,15 +43,15 @@ public record AddressLookupResponse(
         if (copy.isEmpty()) {
             return noResults(query);
         }
-        return new AddressLookupResponse(Outcome.RESULTS, query, copy, totalResults, copy.size(), null);
+        return new AddressLookupResponse(Outcome.RESULTS, query, copy, totalResults, copy.size(), null, null);
     }
 
     static AddressLookupResponse noResults(Query query) {
-        return new AddressLookupResponse(Outcome.NO_RESULTS, query, List.of(), 0, 0, null);
+        return new AddressLookupResponse(Outcome.NO_RESULTS, query, List.of(), 0, 0, null, null);
     }
 
     static AddressLookupResponse failed(Query query, FailureReason reason) {
-        return new AddressLookupResponse(Outcome.FAILED, query, List.of(), null, 0, reason);
+        return new AddressLookupResponse(Outcome.FAILED, query, List.of(), null, 0, reason, null);
     }
 
     public record Query(
@@ -55,8 +66,18 @@ public record AddressLookupResponse(
     }
 
     public enum Mode {
-        POSTCODE,
-        FIND
+        POSTCODE("postcode"),
+        FIND("find");
+
+        private final String parameterName;
+
+        Mode(String parameterName) {
+            this.parameterName = parameterName;
+        }
+
+        public String parameterName() {
+            return parameterName;
+        }
     }
 
     public enum FailureReason {

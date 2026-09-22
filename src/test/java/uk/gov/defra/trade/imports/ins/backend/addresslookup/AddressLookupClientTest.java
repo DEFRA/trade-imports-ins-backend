@@ -7,6 +7,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -41,6 +42,8 @@ class AddressLookupClientTest {
 
     private static final String LOOKUP_URL = "http://localhost:8087/simulator/address-lookup/v2.1/addresses";
 
+    private static final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
     private final RestClient.Builder restClientBuilder = RestClient.builder();
     private final MockRestServiceServer mockServer = MockRestServiceServer.bindTo(restClientBuilder).build();
     private final AddressLookupClient addressLookupClient = client(restClientBuilder, fixedTokenManager());
@@ -72,6 +75,50 @@ class AddressLookupClientTest {
         assertThat(response.totalResults()).isEqualTo(3);
         assertThat(response.returnedResults()).isEqualTo(3);
         assertThat(response.failureReason()).isNull();
+        mockServer.verify();
+    }
+
+    @Test
+    void lookupByPostcode_shouldReportTheTimeTheSearchTook() {
+        mockServer.expect(method(HttpMethod.GET))
+            .andRespond(withStatus(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body("""
+                { "header": { "totalResults": "0" }, "results": [] }
+                """));
+
+        AddressLookupResponse response = addressLookupClient.lookupByPostcode("SW1A 1AA");
+
+        // The token manager here is a stub that mints nothing, so this is the cached shape.
+        assertThat(response.timings()).isNotNull();
+        assertThat(response.timings().tokenSource()).isEqualTo(LookupTimings.TokenSource.CACHED);
+        assertThat(response.timings().lookupMs()).isGreaterThanOrEqualTo(0);
+        assertThat(response.timings().totalMs()).isGreaterThanOrEqualTo(response.timings().lookupMs());
+    }
+
+    @Test
+    void lookupByPostcode_shouldReportTimings_evenWhenTheSearchFails() {
+        mockServer.expect(method(HttpMethod.GET))
+            .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE).contentType(MediaType.APPLICATION_JSON)
+                .body("{}"));
+
+        AddressLookupResponse response = addressLookupClient.lookupByPostcode("XX1 1XX");
+
+        assertThat(response.outcome()).isEqualTo(AddressLookupResponse.Outcome.FAILED);
+        assertThat(response.timings()).isNotNull();
+    }
+
+    @Test
+    void lookupByFind_shouldSendFindRatherThanPostcode() {
+        mockServer.expect(method(HttpMethod.GET))
+            .andExpect(requestToUriTemplate(LOOKUP_URL + "?find={find}&maxresults={maxresults}", "Buckingham Palace", 100))
+            .andRespond(withStatus(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body("""
+                { "header": { "totalResults": "1" }, "results": [ { "addressLine": "BUCKINGHAM PALACE, LONDON, SW1A 1AA" } ] }
+                """));
+
+        AddressLookupResponse response = addressLookupClient.lookupByFind("Buckingham Palace");
+
+        assertThat(response.outcome()).isEqualTo(AddressLookupResponse.Outcome.RESULTS);
+        assertThat(response.query())
+            .isEqualTo(new AddressLookupResponse.Query(AddressLookupResponse.Mode.FIND, "Buckingham Palace"));
         mockServer.verify();
     }
 
@@ -226,7 +273,8 @@ class AddressLookupClientTest {
             AddressLookupConfig.createAddressLookupRestClient(restClientBuilder, authorizedClientManager, properties),
             properties,
             new AddressLookupMapper(new ObjectMapper()),
-            authorizedClientService);
+            authorizedClientService,
+            new AddressLookupMetrics(meterRegistry));
     }
 
     private static OAuth2AuthorizedClientService authorizedClientService() {

@@ -1,7 +1,10 @@
 package uk.gov.defra.trade.imports.ins.backend.addresslookup;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -59,7 +62,10 @@ class AddressLookupConfig {
         OAuth2AuthorizedClientManager addressLookupAuthorizedClientManager,
         OAuth2AuthorizedClientService addressLookupAuthorizedClientService,
         AddressLookupProperties properties,
-        ObjectMapper objectMapper) {
+        ObjectMapper objectMapper,
+        // Optional on purpose. Metrics are a nice-to-have on a spike; a context without a
+        // registry — a slice test, or metrics turned off — must still start and still search.
+        ObjectProvider<MeterRegistry> meterRegistry) {
         // In dev the likeliest failure is configuration rather than code, and a wrong value shows
         // up as a refusal from Entra or the gateway that looks like something else. Identifiers
         // only — no token, assertion or secret is ever logged.
@@ -74,7 +80,8 @@ class AddressLookupConfig {
                 restClientBuilder.clone(), addressLookupAuthorizedClientManager, properties),
             properties,
             new AddressLookupMapper(objectMapper),
-            addressLookupAuthorizedClientService);
+            addressLookupAuthorizedClientService,
+            new AddressLookupMetrics(meterRegistry.getIfAvailable(SimpleMeterRegistry::new)));
     }
 
     /**
