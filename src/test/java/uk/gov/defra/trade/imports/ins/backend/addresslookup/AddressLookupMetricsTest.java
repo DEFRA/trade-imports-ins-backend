@@ -26,8 +26,8 @@ class AddressLookupMetricsTest {
     }
 
     @Test
-    void record_shouldCountTheSearchByModeAndOutcome() {
-        metrics.record(results(AddressLookupResponse.Mode.POSTCODE, cachedTimings()));
+    void recordSearch_shouldCountTheSearchByModeAndOutcome() {
+        metrics.recordSearch(results(AddressLookupResponse.Mode.POSTCODE, cachedTimings()));
 
         assertThat(counter("addressLookup.searches")).isEqualTo(1);
         assertThat(counter("addressLookup.mode.postcode")).isEqualTo(1);
@@ -35,8 +35,8 @@ class AddressLookupMetricsTest {
     }
 
     @Test
-    void record_shouldNameTheFailureReason_soEachIsItsOwnMetric() {
-        metrics.record(AddressLookupResponse
+    void recordSearch_shouldNameTheFailureReason_soEachIsItsOwnMetric() {
+        metrics.recordSearch(AddressLookupResponse
             .failed(query(AddressLookupResponse.Mode.POSTCODE), AddressLookupResponse.FailureReason.HTTP_503)
             .withTimings(cachedTimings()));
 
@@ -45,9 +45,9 @@ class AddressLookupMetricsTest {
     }
 
     @Test
-    void record_shouldAccumulateDurations_soTheDashboardCanDivideForAMean() {
-        metrics.record(results(AddressLookupResponse.Mode.POSTCODE, cachedTimings()));
-        metrics.record(results(AddressLookupResponse.Mode.POSTCODE, cachedTimings()));
+    void recordSearch_shouldAccumulateDurations_soTheDashboardCanDivideForAMean() {
+        metrics.recordSearch(results(AddressLookupResponse.Mode.POSTCODE, cachedTimings()));
+        metrics.recordSearch(results(AddressLookupResponse.Mode.POSTCODE, cachedTimings()));
 
         assertThat(counter("addressLookup.searches")).isEqualTo(2);
         assertThat(counter("addressLookup.durationMs.lookup")).isEqualTo(1400);
@@ -56,15 +56,15 @@ class AddressLookupMetricsTest {
 
     @Test
     void everyMeterShouldBeASingleMeasurement_orTheEmfPublisherWouldCollideThem() {
-        metrics.record(results(AddressLookupResponse.Mode.POSTCODE, LookupTimings.of(1000L, 800L, 2000L, 2100L)));
+        metrics.recordSearch(results(AddressLookupResponse.Mode.POSTCODE, LookupTimings.of(1000L, 800L, 2000L, 2100L)));
 
         assertThat(registry.getMeters())
             .allSatisfy(meter -> assertThat(meter.measure()).hasSize(1));
     }
 
     @Test
-    void record_shouldNotFail_whenThereAreNoTimings() {
-        metrics.record(AddressLookupResponse.noResults(query(AddressLookupResponse.Mode.FIND)));
+    void recordSearch_shouldNotFail_whenThereAreNoTimings() {
+        metrics.recordSearch(AddressLookupResponse.noResults(query(AddressLookupResponse.Mode.FIND)));
 
         assertThat(counter("addressLookup.outcome.no_results")).isEqualTo(1);
     }

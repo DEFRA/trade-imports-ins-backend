@@ -44,7 +44,7 @@ class AddressLookupClient {
     /** One place every search returns through, so no path can skip the metrics. */
     private AddressLookupResponse lookup(AddressLookupResponse.Mode mode, String term) {
         AddressLookupResponse response = runSearch(mode, term);
-        metrics.record(response);
+        metrics.recordSearch(response);
         return response;
     }
 

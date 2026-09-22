@@ -48,7 +48,7 @@ class AddressLookupMetrics {
         names.forEach(name -> meterRegistry.counter(PREFIX + name));
     }
 
-    void record(AddressLookupResponse response) {
+    void recordSearch(AddressLookupResponse response) {
         count("searches");
         count(mode(response.query().mode()));
         count(outcome(response.outcome()));
