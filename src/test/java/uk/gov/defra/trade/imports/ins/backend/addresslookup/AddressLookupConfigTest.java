@@ -1,14 +1,28 @@
 package uk.gov.defra.trade.imports.ins.backend.addresslookup;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.headerDoesNotExist;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.security.oauth2.client.OAuth2ClientAutoConfiguration;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
+import org.springframework.security.oauth2.client.registration.ClientRegistration;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.core.OAuth2AccessToken;
+import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 import software.amazon.awssdk.services.sts.StsClient;
 
@@ -118,6 +132,107 @@ class AddressLookupConfigTest {
             // Then
             assertAbsent(context);
         });
+    }
+
+    /**
+     * The startup log distinguishes a real AWS STS from a simulator, and treats a blank override
+     * as no override. All three cases load the same beans — only the logged value differs — so
+     * these assert the context still comes up rather than the text itself.
+     */
+    @Test
+    void beans_shouldLoad_whenStsEndpointOverrideIsSet() {
+        // Given
+        // When
+        contextRunner
+            .withPropertyValues(
+                "spring.profiles.active=dev",
+                "address-lookup.sts-endpoint-override=http://localhost:8087/simulator/sts")
+            .run(context -> {
+                // Then
+                assertThat(context).hasSingleBean(AddressLookupClient.class);
+                assertThat(context).hasSingleBean(StsClient.class);
+            });
+    }
+
+    @Test
+    void beans_shouldLoad_whenStsEndpointOverrideIsBlank() {
+        // Given
+        // When
+        contextRunner
+            .withPropertyValues("spring.profiles.active=dev", "address-lookup.sts-endpoint-override=   ")
+            .run(context -> {
+                // Then
+                assertThat(context).hasSingleBean(AddressLookupClient.class);
+                assertThat(context).hasSingleBean(StsClient.class);
+            });
+    }
+
+    /**
+     * The second interceptor exists to prove whether a bearer reached the gateway, so both of its
+     * outcomes matter: a token resolved, and no token resolved at all.
+     */
+    @Test
+    void addressLookupRestClient_shouldAttachTheBearer_whenATokenIsAuthorized() {
+        // Given
+        RestClient.Builder restClientBuilder = RestClient.builder();
+        MockRestServiceServer mockServer = MockRestServiceServer.bindTo(restClientBuilder).build();
+        mockServer.expect(method(HttpMethod.GET))
+            .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer test-access-token"))
+            .andRespond(withStatus(HttpStatus.NO_CONTENT));
+        RestClient restClient = AddressLookupConfig.createAddressLookupRestClient(
+            restClientBuilder, fixedTokenManager("test-access-token"), properties());
+
+        // When
+        restClient.get().uri("/addresses").retrieve().toBodilessEntity();
+
+        // Then
+        mockServer.verify();
+    }
+
+    @Test
+    void addressLookupRestClient_shouldStillCall_whenNoTokenIsAuthorized() {
+        // Given — a manager that authorizes nothing, so Spring Security attaches no header
+        RestClient.Builder restClientBuilder = RestClient.builder();
+        MockRestServiceServer mockServer = MockRestServiceServer.bindTo(restClientBuilder).build();
+        mockServer.expect(method(HttpMethod.GET))
+            .andExpect(headerDoesNotExist(HttpHeaders.AUTHORIZATION))
+            .andRespond(withStatus(HttpStatus.NO_CONTENT));
+        RestClient restClient = AddressLookupConfig.createAddressLookupRestClient(
+            restClientBuilder, request -> null, properties());
+
+        // When
+        restClient.get().uri("/addresses").retrieve().toBodilessEntity();
+
+        // Then
+        mockServer.verify();
+    }
+
+    private static OAuth2AuthorizedClientManager fixedTokenManager(String tokenValue) {
+        ClientRegistration registration = ClientRegistration
+            .withRegistrationId(FederatedTokenConfig.CLIENT_REGISTRATION_ID)
+            .clientId("22222222-2222-2222-2222-222222222222")
+            .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
+            .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+            .tokenUri("http://localhost:8087/token")
+            .build();
+        OAuth2AccessToken accessToken = new OAuth2AccessToken(
+            OAuth2AccessToken.TokenType.BEARER, tokenValue, Instant.now(), Instant.now().plusSeconds(3600));
+        return request -> new OAuth2AuthorizedClient(registration, "address-lookup", accessToken);
+    }
+
+    private static AddressLookupProperties properties() {
+        return new AddressLookupProperties(
+            "http://localhost:8087/addresses",
+            "http://localhost:8087/token",
+            "11111111-1111-1111-1111-111111111111",
+            "22222222-2222-2222-2222-222222222222",
+            "33333333-3333-3333-3333-333333333333/.default",
+            "api://AzureADTokenExchange",
+            "RS256",
+            900,
+            100,
+            "SW1A 1AA",
+            null);
     }
 
     private static void assertAbsent(AssertableApplicationContext context) {
