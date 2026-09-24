@@ -1,6 +1,7 @@
 package uk.gov.defra.trade.imports.ins.backend.addresslookup;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -41,22 +42,62 @@ class AddressLookupControllerTest {
     private AddressLookupClient addressLookupClient;
 
     @Test
+    void lookup_shouldSearchTheGivenPostcode() throws Exception {
+        AddressLookupResponse expected = AddressLookupResponse.noResults(
+            new AddressLookupResponse.Query(AddressLookupResponse.Mode.POSTCODE, "SW1A 2AA"));
+        when(addressLookupClient.lookupByPostcode("SW1A 2AA")).thenReturn(expected);
+
+        mockMvc.perform(get("/address-lookup").param("postcode", "SW1A 2AA"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.query.mode").value("POSTCODE"))
+            .andExpect(jsonPath("$.query.term").value("SW1A 2AA"));
+
+        verify(addressLookupClient).lookupByPostcode("SW1A 2AA");
+    }
+
+    @Test
+    void lookup_shouldSearchByFind_whenFindIsGiven() throws Exception {
+        AddressLookupResponse expected = AddressLookupResponse.noResults(
+            new AddressLookupResponse.Query(AddressLookupResponse.Mode.FIND, "Buckingham Palace"));
+        when(addressLookupClient.lookupByFind("Buckingham Palace")).thenReturn(expected);
+
+        mockMvc.perform(get("/address-lookup").param("find", "Buckingham Palace"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.query.mode").value("FIND"))
+            .andExpect(jsonPath("$.query.term").value("Buckingham Palace"));
+
+        verify(addressLookupClient).lookupByFind("Buckingham Palace");
+    }
+
+    @Test
+    void lookup_shouldRejectBothParametersAtOnce() throws Exception {
+        // One call can only be one of them, and answering with the postcode result would look
+        // like find behaves the same way — the question the spike exists to settle.
+        mockMvc.perform(get("/address-lookup")
+                .param("postcode", "SW1A 1AA")
+                .param("find", "Buckingham Palace"))
+            .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(addressLookupClient);
+    }
+
+    @Test
     void lookup_shouldSearchTheConfiguredDefaultPostcode_withNoParameters() throws Exception {
         // Given
         AddressLookupResponse expected = AddressLookupResponse.results(
             new AddressLookupResponse.Query(AddressLookupResponse.Mode.POSTCODE, "SW1A 1AA"),
             List.of(new AddressLookupResponse.Address(
-                "1 Downing Street, London, SW1A 2AA",
+                "1 DOWNING STREET, LONDON, SW1A 2AA",
                 "1",
                 null,
                 null,
-                "Downing Street",
+                "DOWNING STREET",
                 null,
-                "London",
+                "LONDON",
                 "SW1A 2AA",
-                "England",
+                "ENGLAND",
                 "100023336901",
-                "1.0",
+                "1",
                 "EXACT",
                 "EN",
                 null,
@@ -70,7 +111,7 @@ class AddressLookupControllerTest {
             .andExpect(jsonPath("$.outcome").value("RESULTS"))
             .andExpect(jsonPath("$.query.mode").value("POSTCODE"))
             .andExpect(jsonPath("$.query.term").value("SW1A 1AA"))
-            .andExpect(jsonPath("$.results[0].addressLine").value("1 Downing Street, London, SW1A 2AA"))
+            .andExpect(jsonPath("$.results[0].addressLine").value("1 DOWNING STREET, LONDON, SW1A 2AA"))
             .andExpect(jsonPath("$.totalResults").value(3))
             .andExpect(jsonPath("$.returnedResults").value(1));
 

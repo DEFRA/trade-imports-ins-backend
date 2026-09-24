@@ -143,6 +143,13 @@
       <groupId>io.micrometer</groupId>
       <artifactId>micrometer-core</artifactId>
     </dependency>
+    <!-- For the local stack's Prometheus + Grafana only. Export is off in application.yml and
+         switched on in application-local.yml, so deployed environments keep the plain registry. -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
+      <scope>runtime</scope>
+    </dependency>
 
     <!-- Testing -->
     <dependency>

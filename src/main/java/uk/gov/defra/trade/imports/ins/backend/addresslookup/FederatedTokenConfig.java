@@ -27,7 +27,9 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sts.StsClient;
 
@@ -53,14 +55,21 @@ class FederatedTokenConfig {
 
     @Bean
     StsClient addressLookupStsClient(@Value("${aws.region}") String region, AddressLookupProperties properties) {
-        var builder = StsClient.builder()
-            .region(Region.of(region))
-            // Explicit, though it is the SDK default: in CDP the container credentials are what
-            // make the assertion's sub the service's own role ARN.
-            .credentialsProvider(DefaultCredentialsProvider.builder().build());
+        var builder = StsClient.builder().region(Region.of(region));
         if (StringUtils.hasText(properties.stsEndpointOverride())) {
             log.info("Using STS endpoint override for the address lookup spike: {}", properties.stsEndpointOverride());
             builder.endpointOverride(URI.create(properties.stsEndpointOverride()));
+            // The override only ever points at the simulator, which does not check the signature.
+            // The SDK still signs the request though, so DefaultCredentialsProvider would fail
+            // outright when nothing supplies credentials — which is every native run, since
+            // AWS_ACCESS_KEY_ID comes from the environment and no Spring property can set it.
+            // Placeholders keep the simulator usable from an IDE with no AWS setup at all.
+            builder.credentialsProvider(
+                StaticCredentialsProvider.create(AwsBasicCredentials.create("simulator", "simulator")));
+        } else {
+            // Explicit, though it is the SDK default: in CDP the container credentials are what
+            // make the assertion's sub the service's own role ARN.
+            builder.credentialsProvider(DefaultCredentialsProvider.builder().build());
         }
         return builder.build();
     }
@@ -95,8 +104,9 @@ class FederatedTokenConfig {
             .requestInterceptor((request, body, execution) -> {
                 long start = System.currentTimeMillis();
                 var response = execution.execute(request, body);
-                log.info("Entra token endpoint answered {} in {}ms",
-                    response.getStatusCode().value(), System.currentTimeMillis() - start);
+                long elapsed = System.currentTimeMillis() - start;
+                LookupTimingsRecorder.recordEntra(elapsed);
+                log.info("Entra token endpoint answered {} in {}ms", response.getStatusCode().value(), elapsed);
                 return response;
             })
             .build();
@@ -139,10 +149,12 @@ class FederatedTokenConfig {
             .signingAlgorithm(properties.signingAlgorithm())
             .durationSeconds(properties.assertionDurationSeconds()));
         String assertion = token.webIdentityToken();
+        long elapsed = System.currentTimeMillis() - start;
+        LookupTimingsRecorder.recordSts(elapsed);
         // The assertion itself is a credential and is never logged; its expiry is enough to show
         // the hop ran and that the duration we asked for was honoured.
         log.info("Minted an STS web identity assertion for audience={} in {}ms, expires {}",
-            properties.audience(), System.currentTimeMillis() - start, token.expiration());
+            properties.audience(), elapsed, token.expiration());
 
         MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
         parameters.set(OAuth2ParameterNames.CLIENT_ASSERTION_TYPE, "urn:ietf:params:oauth:client-assertion-type:jwt-bearer");
@@ -150,18 +162,17 @@ class FederatedTokenConfig {
         return parameters;
     }
 
-    /**
-     * Client-credentials tokens are application-scoped, not request-scoped, so this is
-     * {@link AuthorizedClientServiceOAuth2AuthorizedClientManager} rather than the servlet
-     * {@code DefaultOAuth2AuthorizedClientManager}. Boot would publish a manager for us if
-     * OAuth2 web security were on; it is excluded (D4c), so the manager is explicit.
-     */
+    @Bean
+    OAuth2AuthorizedClientService addressLookupAuthorizedClientService(
+        ClientRegistrationRepository clientRegistrationRepository) {
+        return new InMemoryOAuth2AuthorizedClientService(clientRegistrationRepository);
+    }
+
     @Bean
     OAuth2AuthorizedClientManager addressLookupAuthorizedClientManager(
         ClientRegistrationRepository clientRegistrationRepository,
+        OAuth2AuthorizedClientService authorizedClientService,
         OAuth2AccessTokenResponseClient<OAuth2ClientCredentialsGrantRequest> addressLookupTokenResponseClient) {
-        OAuth2AuthorizedClientService authorizedClientService =
-            new InMemoryOAuth2AuthorizedClientService(clientRegistrationRepository);
         var authorizedClientProvider = OAuth2AuthorizedClientProviderBuilder.builder()
             .clientCredentials(configurer -> configurer.accessTokenResponseClient(addressLookupTokenResponseClient))
             .build();

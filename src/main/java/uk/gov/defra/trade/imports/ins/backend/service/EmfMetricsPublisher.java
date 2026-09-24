@@ -14,6 +14,12 @@ import software.amazon.cloudwatchlogs.emf.logger.MetricsLogger;
 @Slf4j
 @ConditionalOnProperty(name = "management.metrics.enabled", havingValue = "true")
 public class EmfMetricsPublisher {
+  /**
+   * Counters are cumulative, so removing these after each flush makes every published value that
+   * minute's count rather than a running total since start — which is what a CloudWatch Sum needs.
+   */
+  private static final List<String> RESET_AFTER_PUBLISH = List.of("controller", "addressLookup.");
+
   private final String namespace;
   private final MeterRegistry meterRegistry;
   
@@ -42,7 +48,7 @@ public class EmfMetricsPublisher {
                     }));
     meterRegistry.getMeters()
         .stream()
-        .filter(meter -> meter.getId().getName().startsWith("controller"))
+        .filter(meter -> RESET_AFTER_PUBLISH.stream().anyMatch(meter.getId().getName()::startsWith))
         .forEach(meterRegistry::remove);
     metricsLogger.flush();
   }

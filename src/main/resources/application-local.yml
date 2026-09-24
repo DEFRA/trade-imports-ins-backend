@@ -14,10 +14,19 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,env
+        include: health,info,metrics,env,prometheus
   endpoint:
     health:
       show-details: when-authorized
+  # Off locally: EmfMetricsPublisher has no CloudWatch to reach here, and the meters it removes
+  # after every flush would reset the counters under Prometheus each minute.
+  metrics:
+    enabled: false
+  # Scraped by the workspace stack's opt-in monitoring profile (Prometheus + Grafana).
+  prometheus:
+    metrics:
+      export:
+        enabled: true
 spring:
   data:
     mongodb:
@@ -62,7 +71,7 @@ address-lookup:
   tenant-id: ${ADDRESS_LOOKUP_TENANT_ID:11111111-1111-1111-1111-111111111111}
   oauth-token-url: ${ADDRESS_LOOKUP_OAUTH_TOKEN_URL:http://localhost:8087/simulator/entra/${address-lookup.tenant-id}/oauth2/v2.0/token}
   client-id: ${ADDRESS_LOOKUP_CLIENT_ID:22222222-2222-2222-2222-222222222222}
-  client-scope: ${ADDRESS_LOOKUP_CLIENT_SCOPE:33333333-3333-3333-3333-333333333333/.default}
+  client-scope: ${ADDRESS_LOOKUP_CLIENT_SCOPE:api://33333333-3333-3333-3333-333333333333/.default}
   audience: ${ADDRESS_LOOKUP_AUDIENCE:api://AzureADTokenExchange}
   signing-algorithm: ${ADDRESS_LOOKUP_SIGNING_ALGORITHM:RS256}
   assertion-duration-seconds: ${ADDRESS_LOOKUP_ASSERTION_DURATION_SECONDS:900}

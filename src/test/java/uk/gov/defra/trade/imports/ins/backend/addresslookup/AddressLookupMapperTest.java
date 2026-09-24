@@ -123,17 +123,17 @@ class AddressLookupMapperTest {
                   "header": { "totalResults": "1" },
                   "results": [
                     {
-                      "addressLine": "Unit 1, Downing House, 10 Downing Street, London, SW1A 2AA",
+                      "addressLine": "UNIT 1, DOWNING HOUSE, 10 DOWNING STREET, LONDON, SW1A 2AA",
                       "buildingNumber": "10",
-                      "buildingName": "Downing House",
-                      "subBuildingName": "Unit 1",
-                      "street": "Downing Street",
-                      "locality": "Westminster",
-                      "town": "London",
+                      "buildingName": "DOWNING HOUSE",
+                      "subBuildingName": "UNIT 1",
+                      "street": "DOWNING STREET",
+                      "locality": "WESTMINSTER",
+                      "town": "LONDON",
                       "postcode": "SW1A 2AA",
-                      "country": "England",
+                      "country": "ENGLAND",
                       "uprn": "100023336956",
-                      "match": "1.0",
+                      "match": "1",
                       "matchDescription": "EXACT",
                       "language": "EN",
                       "xCoordinate": 530047,
@@ -145,21 +145,57 @@ class AddressLookupMapperTest {
 
         assertThat(response.totalResults()).isEqualTo(1);
         AddressLookupResponse.Address address = response.results().getFirst();
-        assertThat(address.addressLine()).isEqualTo("Unit 1, Downing House, 10 Downing Street, London, SW1A 2AA");
+        assertThat(address.addressLine()).isEqualTo("UNIT 1, DOWNING HOUSE, 10 DOWNING STREET, LONDON, SW1A 2AA");
         assertThat(address.buildingNumber()).isEqualTo("10");
-        assertThat(address.buildingName()).isEqualTo("Downing House");
-        assertThat(address.subBuildingName()).isEqualTo("Unit 1");
-        assertThat(address.street()).isEqualTo("Downing Street");
-        assertThat(address.locality()).isEqualTo("Westminster");
-        assertThat(address.town()).isEqualTo("London");
+        assertThat(address.buildingName()).isEqualTo("DOWNING HOUSE");
+        assertThat(address.subBuildingName()).isEqualTo("UNIT 1");
+        assertThat(address.street()).isEqualTo("DOWNING STREET");
+        assertThat(address.locality()).isEqualTo("WESTMINSTER");
+        assertThat(address.town()).isEqualTo("LONDON");
         assertThat(address.postcode()).isEqualTo("SW1A 2AA");
-        assertThat(address.country()).isEqualTo("England");
+        assertThat(address.country()).isEqualTo("ENGLAND");
         assertThat(address.uprn()).isEqualTo("100023336956");
-        assertThat(address.match()).isEqualTo("1.0");
+        assertThat(address.match()).isEqualTo("1");
         assertThat(address.matchDescription()).isEqualTo("EXACT");
         assertThat(address.language()).isEqualTo("EN");
         assertThat(address.xCoordinate()).isEqualTo(530047);
         assertThat(address.yCoordinate()).isEqualTo(179951);
+    }
+
+    @Test
+    void map_shouldKeepANameThatArrivesOnlyInSubBuildingName() {
+        // What SW1A 1AA really returned from dev on 2026-09-17: the whole name in subBuildingName,
+        // with buildingName, buildingNumber and street all null. Composing an address line cannot
+        // assume which field a name lands in.
+        AddressLookupResponse response =
+            mapper.map(QUERY, HttpStatus.OK, MediaType.APPLICATION_JSON, """
+                {
+                  "header": { "totalResults": "1" },
+                  "results": [
+                    {
+                      "addressLine": "BUCKINGHAM PALACE, LONDON, SW1A 1AA",
+                      "subBuildingName": "BUCKINGHAM PALACE",
+                      "buildingName": null,
+                      "buildingNumber": null,
+                      "street": null,
+                      "town": "LONDON",
+                      "postcode": "SW1A 1AA",
+                      "country": "ENGLAND",
+                      "uprn": "100023336956",
+                      "match": "1",
+                      "matchDescription": "EXACT"
+                    }
+                  ]
+                }
+                """);
+
+        AddressLookupResponse.Address address = response.results().getFirst();
+        assertThat(address.subBuildingName()).isEqualTo("BUCKINGHAM PALACE");
+        assertThat(address.buildingName()).isNull();
+        assertThat(address.buildingNumber()).isNull();
+        assertThat(address.street()).isNull();
+        assertThat(address.town()).isEqualTo("LONDON");
+        assertThat(address.country()).isEqualTo("ENGLAND");
     }
 
     @Test

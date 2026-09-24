@@ -1,7 +1,10 @@
 package uk.gov.defra.trade.imports.ins.backend.addresslookup;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,6 +15,7 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.web.client.OAuth2ClientHttpRequestInterceptor;
 import org.springframework.web.client.RestClient;
 
@@ -56,8 +60,12 @@ class AddressLookupConfig {
     AddressLookupClient addressLookupClient(
         RestClient.Builder restClientBuilder,
         OAuth2AuthorizedClientManager addressLookupAuthorizedClientManager,
+        OAuth2AuthorizedClientService addressLookupAuthorizedClientService,
         AddressLookupProperties properties,
-        ObjectMapper objectMapper) {
+        ObjectMapper objectMapper,
+        // Optional on purpose. Metrics are a nice-to-have on a spike; a context without a
+        // registry — a slice test, or metrics turned off — must still start and still search.
+        ObjectProvider<MeterRegistry> meterRegistry) {
         // In dev the likeliest failure is configuration rather than code, and a wrong value shows
         // up as a refusal from Entra or the gateway that looks like something else. Identifiers
         // only — no token, assertion or secret is ever logged.
@@ -71,7 +79,9 @@ class AddressLookupConfig {
             createAddressLookupRestClient(
                 restClientBuilder.clone(), addressLookupAuthorizedClientManager, properties),
             properties,
-            new AddressLookupMapper(objectMapper));
+            new AddressLookupMapper(objectMapper),
+            addressLookupAuthorizedClientService,
+            new AddressLookupMetrics(meterRegistry.getIfAvailable(SimpleMeterRegistry::new)));
     }
 
     /**
