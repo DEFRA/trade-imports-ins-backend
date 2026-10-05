@@ -119,7 +119,10 @@ class AddressLookupClient {
         throws IOException {
         String body = response.bodyTo(String.class);
         String responseBody = body != null ? body : "";
-        if (!response.getStatusCode().is2xxSuccessful()) {
+        if (response.getStatusCode().is2xxSuccessful()) {
+            log.info("Address lookup answered: status={} body={}",
+                response.getStatusCode().value(), responseBody);
+        } else {
             logRefusal(response.getStatusCode().value(), response.getHeaders(), responseBody);
         }
         return mapper.map(query, response.getStatusCode(), response.getHeaders().getContentType(), responseBody);
