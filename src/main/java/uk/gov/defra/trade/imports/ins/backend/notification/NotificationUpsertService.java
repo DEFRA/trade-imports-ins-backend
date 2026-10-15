@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 public class NotificationUpsertService {
 
   private static final String AGGREGATE_VERSION = "aggregateVersion";
+  private static final String REGION_OF_ORIGIN = "106";
   private final MongoTemplate mongoTemplate;
 
     public void upsert(JsonNode body) {
@@ -40,6 +41,9 @@ public class NotificationUpsertService {
 
         String originCountry = textOrNull(
             specifiedConsignment.path("originCountry").path("code").path("value"));
+
+        String originCountrySubdivisionCode = regionOfOriginIdentifier(
+            specifiedConsignment.path("originCountry").path("subordinateTradeCountrySubDivision"));
 
         String arrivalDateStr = textOrNull(
             specifiedConsignment
@@ -86,6 +90,9 @@ public class NotificationUpsertService {
         if (referenceNumber != null) update.set("referenceNumber", referenceNumber);
         if (status != null) update.set("status", status);
         if (originCountry != null) update.set("originCountry", originCountry);
+        if (originCountrySubdivisionCode != null) {
+            update.set("originCountrySubdivisionCode", originCountrySubdivisionCode);
+        }
         if (arrivalDate != null) update.set("arrivalDate", arrivalDate);
         if (commodity != null) update.set("commodity", commodity);
 
@@ -96,6 +103,17 @@ public class NotificationUpsertService {
         mongoTemplate.upsert(query, update, AggregatedNotification.class);
 
         log.info("Upserted aggregatedNotification: aggregateId={}, aggregateVersion={}", aggregateId, incomingVersion);
+    }
+
+    // The origin's subdivision is its region of origin sub-division (UNCL3227 '106'); a country
+    // can carry other sub-divisions too, so the code is picked by function, not position.
+    private static String regionOfOriginIdentifier(JsonNode subDivisions) {
+        for (JsonNode subDivision : subDivisions) {
+            if (REGION_OF_ORIGIN.equals(subDivision.path("functionTypeCode").path("content").asText(null))) {
+                return textOrNull(subDivision.path("identifier"));
+            }
+        }
+        return null;
     }
 
     private static String textOrNull(JsonNode node) {

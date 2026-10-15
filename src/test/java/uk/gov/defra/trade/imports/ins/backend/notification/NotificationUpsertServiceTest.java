@@ -131,7 +131,63 @@ class NotificationUpsertServiceTest {
 
         Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
         assertThat(setFields).doesNotContainKey("referenceNumber")
-            .doesNotContainKey("status");
+            .doesNotContainKey("status")
+            .doesNotContainKey("originCountrySubdivisionCode");
+    }
+
+    @Test
+    void upsert_storesTheRegionOfOriginSubdivisionCode_andNotTheRegionOfOriginCode() throws Exception {
+        // Given — a Canary Islands origin; the authority sub-division comes first, so the code is
+        // picked by function ('106'), not by position
+        JsonNode body = mapper.readTree("""
+            {
+              "aggregateId": "agg-1",
+              "aggregateVersion": 1,
+              "data": {
+                "specifiedConsignment": {
+                  "originCountry": {
+                    "code": { "value": "ES" },
+                    "subordinateTradeCountrySubDivision": [
+                      { "functionTypeCode": { "content": "44" } },
+                      {
+                        "identifier": "ES-CN",
+                        "urlId": "https://refdata.tbc.defra.gov.uk/country_subdivisions",
+                        "functionTypeCode": { "content": "106" }
+                      }
+                    ],
+                    "regionOfOriginCode": "ES-12345"
+                  }
+                }
+              }
+            }
+            """);
+
+        // When
+        service.upsert(body);
+
+        // Then
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
+        Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertThat(setFields).containsEntry("originCountry", "ES")
+            .containsEntry("originCountrySubdivisionCode", "ES-CN")
+            .doesNotContainValue("ES-12345");
+    }
+
+    @Test
+    void upsert_doesNotSetSubdivisionCode_whenOriginIsAWholeCountry() throws Exception {
+        // Given
+        JsonNode body = mapper.readTree(fullNotificationEdited(1));
+
+        // When
+        service.upsert(body);
+
+        // Then
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
+        Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertThat(setFields).containsEntry("originCountry", "GB")
+            .doesNotContainKey("originCountrySubdivisionCode");
     }
 
     private static String fullNotificationEdited(long version) {
