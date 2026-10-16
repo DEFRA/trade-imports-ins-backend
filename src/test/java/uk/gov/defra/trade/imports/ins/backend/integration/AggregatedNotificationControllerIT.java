@@ -117,6 +117,26 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
             .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void findAll_returnsTheOriginCountrySubdivisionCode() throws Exception {
+        // Given
+        mongoTemplate.save(AggregatedNotification.builder()
+            .aggregateId("agg-canary")
+            .aggregateVersion(1L)
+            .referenceNumber("GBN-AG-26-004")
+            .status("SUBMITTED")
+            .originCountry("ES")
+            .originCountrySubdivisionCode("ES-CN")
+            .lastUpdated(Instant.now())
+            .build());
+
+        // When / Then
+        mockMvc.perform(get("/notifications"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].originCountry").value("ES"))
+            .andExpect(jsonPath("$.content[0].originCountrySubdivisionCode").value("ES-CN"));
+    }
+
     private void seed(String aggregateId, String referenceNumber, String status, String originCountry,
             String commodity, String arrivalDate) {
         mongoTemplate.save(AggregatedNotification.builder()

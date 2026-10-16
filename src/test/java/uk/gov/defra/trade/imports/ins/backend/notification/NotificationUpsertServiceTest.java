@@ -131,7 +131,67 @@ class NotificationUpsertServiceTest {
 
         Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
         assertThat(setFields).doesNotContainKey("referenceNumber")
-            .doesNotContainKey("status");
+            .doesNotContainKey("status")
+            .doesNotContainKey("originCountrySubdivisionCode");
+        // No origin on the event, so a stored subdivision is left alone rather than cleared
+        assertThat(updateCaptor.getValue().getUpdateObject().get("$unset", Document.class)).isNull();
+    }
+
+    @Test
+    void upsert_storesTheRegionOfOriginSubdivisionCode_andNotTheRegionOfOriginCode() throws Exception {
+        // Given — a Canary Islands origin; the authority sub-division comes first, so the code is
+        // picked by function ('106'), not by position
+        JsonNode body = mapper.readTree("""
+            {
+              "aggregateId": "agg-1",
+              "aggregateVersion": 1,
+              "data": {
+                "specifiedConsignment": {
+                  "originCountry": {
+                    "code": { "value": "ES" },
+                    "subordinateTradeCountrySubDivision": [
+                      { "functionTypeCode": { "content": "44" } },
+                      {
+                        "identifier": "ES-CN",
+                        "urlId": "https://refdata.tbc.defra.gov.uk/country_subdivisions",
+                        "functionTypeCode": { "content": "106" }
+                      }
+                    ],
+                    "regionOfOriginCode": "ES-12345"
+                  }
+                }
+              }
+            }
+            """);
+
+        // When
+        service.upsert(body);
+
+        // Then
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
+        Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertThat(setFields).containsEntry("originCountry", "ES")
+            .containsEntry("originCountrySubdivisionCode", "ES-CN")
+            .doesNotContainValue("ES-12345");
+    }
+
+    @Test
+    void upsert_shouldClearSubdivisionCode_whenOriginIsAWholeCountry() throws Exception {
+        // Given — a whole-country origin, as after an amendment away from a subdivision
+        JsonNode body = mapper.readTree(fullNotificationEdited(1));
+
+        // When
+        service.upsert(body);
+
+        // Then
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
+        Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        Document unsetFields = updateCaptor.getValue().getUpdateObject().get("$unset", Document.class);
+        assertThat(setFields).containsEntry("originCountry", "GB")
+            .doesNotContainKey("originCountrySubdivisionCode");
+        assertThat(unsetFields).containsKey("originCountrySubdivisionCode");
     }
 
     private static String fullNotificationEdited(long version) {
