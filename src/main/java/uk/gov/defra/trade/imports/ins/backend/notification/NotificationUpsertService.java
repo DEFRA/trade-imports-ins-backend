@@ -90,8 +90,13 @@ public class NotificationUpsertService {
         if (referenceNumber != null) update.set("referenceNumber", referenceNumber);
         if (status != null) update.set("status", status);
         if (originCountry != null) update.set("originCountry", originCountry);
+        // The subdivision belongs to the origin it arrived with. An event that carries an origin
+        // with no subdivision (say, an amendment from the Canary Islands to mainland France) clears
+        // it; an event with no origin at all, such as a lifecycle event, leaves it alone.
         if (originCountrySubdivisionCode != null) {
             update.set("originCountrySubdivisionCode", originCountrySubdivisionCode);
+        } else if (originCountry != null) {
+            update.unset("originCountrySubdivisionCode");
         }
         if (arrivalDate != null) update.set("arrivalDate", arrivalDate);
         if (commodity != null) update.set("commodity", commodity);

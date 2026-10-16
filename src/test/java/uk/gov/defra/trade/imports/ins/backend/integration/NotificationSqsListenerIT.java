@@ -81,6 +81,42 @@ class NotificationSqsListenerIT extends IntegrationBase {
     }
 
     @Test
+    void amendmentToAWholeCountryOrigin_clearsTheSubdivisionCode() {
+        // Given — a Canary Islands origin is stored
+        String subdivisionOrigin = """
+            {
+              "aggregateId": "%s",
+              "aggregateVersion": 1,
+              "eventType": "uk.gov.defra.imports.notification.NotificationSubmitted",
+              "data": {
+                "specifiedConsignment": {
+                  "originCountry": {
+                    "code": { "value": "ES" },
+                    "subordinateTradeCountrySubDivision": [
+                      { "identifier": "ES-CN", "functionTypeCode": { "content": "106" } }
+                    ]
+                  }
+                }
+              }
+            }
+            """.formatted(AGGREGATE_ID);
+        sendToSqs(subdivisionOrigin, AGGREGATE_ID);
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
+            assertThat(repository.findById(AGGREGATE_ID))
+                .hasValueSatisfying(doc -> assertThat(doc.getOriginCountrySubdivisionCode()).isEqualTo("ES-CN")));
+
+        // When — a later version moves the origin to a whole country
+        sendToSqs(notificationEdited(2), AGGREGATE_ID);
+
+        // Then
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
+            assertThat(repository.findById(AGGREGATE_ID)).hasValueSatisfying(doc -> {
+                assertThat(doc.getOriginCountry()).isEqualTo("GB");
+                assertThat(doc.getOriginCountrySubdivisionCode()).isNull();
+            }));
+    }
+
+    @Test
     void deliveringSameEventTwice_isIdempotent() {
         // Given
         String body = notificationEdited(1);

@@ -133,6 +133,8 @@ class NotificationUpsertServiceTest {
         assertThat(setFields).doesNotContainKey("referenceNumber")
             .doesNotContainKey("status")
             .doesNotContainKey("originCountrySubdivisionCode");
+        // No origin on the event, so a stored subdivision is left alone rather than cleared
+        assertThat(updateCaptor.getValue().getUpdateObject().get("$unset", Document.class)).isNull();
     }
 
     @Test
@@ -175,8 +177,8 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_doesNotSetSubdivisionCode_whenOriginIsAWholeCountry() throws Exception {
-        // Given
+    void upsert_shouldClearSubdivisionCode_whenOriginIsAWholeCountry() throws Exception {
+        // Given — a whole-country origin, as after an amendment away from a subdivision
         JsonNode body = mapper.readTree(fullNotificationEdited(1));
 
         // When
@@ -186,8 +188,10 @@ class NotificationUpsertServiceTest {
         ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
         verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
         Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        Document unsetFields = updateCaptor.getValue().getUpdateObject().get("$unset", Document.class);
         assertThat(setFields).containsEntry("originCountry", "GB")
             .doesNotContainKey("originCountrySubdivisionCode");
+        assertThat(unsetFields).containsKey("originCountrySubdivisionCode");
     }
 
     private static String fullNotificationEdited(long version) {
