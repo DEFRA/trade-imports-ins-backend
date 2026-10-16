@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 public class NotificationUpsertService {
 
   private static final String AGGREGATE_VERSION = "aggregateVersion";
+  private static final String ORIGIN_COUNTRY = "originCountry";
   private static final String REGION_OF_ORIGIN = "106";
   private final MongoTemplate mongoTemplate;
 
@@ -39,11 +40,11 @@ public class NotificationUpsertService {
         String status = textOrNull(exchangedDocument.path("notificationStatusCode"));
         String lastUpdatedStr = textOrNull(exchangedDocument.path("issueDateTime"));
 
-        String originCountry = textOrNull(
-            specifiedConsignment.path("originCountry").path("code").path("value"));
+        JsonNode originCountryNode = specifiedConsignment.path(ORIGIN_COUNTRY);
+        String originCountry = textOrNull(originCountryNode.path("code").path("value"));
 
         String originCountrySubdivisionCode = regionOfOriginIdentifier(
-            specifiedConsignment.path("originCountry").path("subordinateTradeCountrySubDivision"));
+            originCountryNode.path("subordinateTradeCountrySubDivision"));
 
         String arrivalDateStr = textOrNull(
             specifiedConsignment
@@ -57,27 +58,13 @@ public class NotificationUpsertService {
                 .path("includedTradeLineItem").path(0)
                 .path("commonName"));
 
-        Instant lastUpdated;
-        if (lastUpdatedStr != null) {
-            try {
-                lastUpdated = Instant.parse(lastUpdatedStr);
-            } catch (DateTimeParseException e) {
-                throw new SqsNonRetryableException(
-                    "Invalid issueDateTime for aggregateId=" + aggregateId, e);
-            }
-        } else {
-            lastUpdated = Instant.now();
-        }
+        Instant lastUpdated = lastUpdatedStr != null
+            ? parseInstant(lastUpdatedStr, "issueDateTime", aggregateId)
+            : Instant.now();
 
-        Instant arrivalDate = null;
-        if (arrivalDateStr != null) {
-            try {
-                arrivalDate = Instant.parse(arrivalDateStr);
-            } catch (DateTimeParseException e) {
-                throw new SqsNonRetryableException(
-                    "Invalid scheduledOccurrenceDateTime for aggregateId=" + aggregateId, e);
-            }
-        }
+        Instant arrivalDate = arrivalDateStr != null
+            ? parseInstant(arrivalDateStr, "scheduledOccurrenceDateTime", aggregateId)
+            : null;
 
         // Single atomic operation: only applies when the stored version is lower than the incoming
         // version. Concurrent events for the same notification and out-of-order redelivery both
@@ -89,7 +76,7 @@ public class NotificationUpsertService {
 
         if (referenceNumber != null) update.set("referenceNumber", referenceNumber);
         if (status != null) update.set("status", status);
-        if (originCountry != null) update.set("originCountry", originCountry);
+        if (originCountry != null) update.set(ORIGIN_COUNTRY, originCountry);
         // The subdivision belongs to the origin it arrived with. An event that carries an origin
         // with no subdivision (say, an amendment from the Canary Islands to mainland France) clears
         // it; an event with no origin at all, such as a lifecycle event, leaves it alone.
@@ -119,6 +106,15 @@ public class NotificationUpsertService {
             }
         }
         return null;
+    }
+
+    private static Instant parseInstant(String value, String fieldName, String aggregateId) {
+        try {
+            return Instant.parse(value);
+        } catch (DateTimeParseException e) {
+            throw new SqsNonRetryableException(
+                "Invalid " + fieldName + " for aggregateId=" + aggregateId, e);
+        }
     }
 
     private static String textOrNull(JsonNode node) {
