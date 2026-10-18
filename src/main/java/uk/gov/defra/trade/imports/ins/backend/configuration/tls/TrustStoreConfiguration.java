@@ -67,7 +67,7 @@ public class TrustStoreConfiguration {
             return sslContext;
 
         } catch (Exception e) {
-            log.error("Failed to initialize custom SSL context: {}", e.getMessage(), e);
+            log.error("Failed to initialize custom SSL context", e);
             throw new IllegalStateException("Cannot initialize SSL context", e);
         }
     }

@@ -74,8 +74,7 @@ public class ProxyConfig {
             log.info("HTTP proxy configured: {}:{}", proxyHost, proxyPort);
 
         } catch (IllegalArgumentException e) {
-            log.error("Failed to parse HTTP_PROXY: {}. Error: {}",
-                httpProxy, e.getMessage());
+            log.error("Failed to parse HTTP_PROXY: {}", httpProxy, e);
         }
     }
 }

@@ -37,7 +37,7 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(MethodArgumentNotValidException.class)
   public ProblemDetail handleValidationException(MethodArgumentNotValidException ex) {
     String traceId = MDC.get(MDC_TRACE_ID);
-    log.warn("Validation error (trace: {}): {}", traceId, ex.getMessage());
+    log.warn("Validation error (trace: {})", traceId, ex);
 
     ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
         HttpStatus.BAD_REQUEST,
@@ -68,7 +68,7 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(ConstraintViolationException.class)
   public ProblemDetail handleConstraintViolationException(ConstraintViolationException ex) {
     String traceId = MDC.get(MDC_TRACE_ID);
-    log.warn("Constraint violation (trace: {}): {}", traceId, ex.getMessage());
+    log.warn("Constraint violation (trace: {})", traceId, ex);
 
     ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
         HttpStatus.BAD_REQUEST,
@@ -101,7 +101,7 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(NotFoundException.class)
   public ProblemDetail handleNotFoundException(NotFoundException ex) {
     String traceId = MDC.get(MDC_TRACE_ID);
-    log.warn("Resource not found (trace: {}): {}", traceId, ex.getMessage());
+    log.warn("Resource not found (trace: {})", traceId, ex);
 
     ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
         HttpStatus.NOT_FOUND,
@@ -124,7 +124,7 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(ConflictException.class)
   public ProblemDetail handleConflictException(ConflictException ex) {
     String traceId = MDC.get(MDC_TRACE_ID);
-    log.warn("Resource conflict (trace: {}): {}", traceId, ex.getMessage());
+    log.warn("Resource conflict (trace: {})", traceId, ex);
 
     ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
         HttpStatus.CONFLICT,
@@ -155,7 +155,7 @@ public class GlobalExceptionHandler {
   })
   public ProblemDetail handleException(Exception ex) {
     String traceId = MDC.get(MDC_TRACE_ID);
-    log.error("Unexpected error (trace: {}): {}", traceId, ex.getMessage(), ex);
+    log.error("Unexpected error (trace: {})", traceId, ex);
 
     ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
         HttpStatus.INTERNAL_SERVER_ERROR,

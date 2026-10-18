@@ -91,7 +91,7 @@ abstract class IntegrationBase {
         try (SqsClient sqs = localSqsClient()) {
             sqs.purgeQueue(PurgeQueueRequest.builder().queueUrl(queueUrl).build());
         } catch (PurgeQueueInProgressException e) {
-            log.debug("Queue purge already in progress, skipping: {}", e.getMessage());
+            log.debug("Queue purge already in progress, skipping it", e);
         }
     }
 
