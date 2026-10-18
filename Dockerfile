@@ -26,7 +26,7 @@ COPY src ./src
 # Build without running tests
 # Tests are run separately in CI/CD pipeline and locally
 # (Testcontainers requires Docker, which isn't available inside Docker build)
-RUN mvn clean package -DskipTests -B
+RUN mvn clean package -DskipTests -Dcheckstyle.skip -B
 
 ################################################################################
 # Stage 2: Development (run pre-built JAR)

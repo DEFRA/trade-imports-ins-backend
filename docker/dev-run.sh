@@ -32,7 +32,7 @@ watch_and_compile() {
       touch "$marker"
       # A compile failure (mid-edit syntax error) must not kill the loop, so
       # guard it in the condition — set -e does not fire on if-conditions.
-      if mvn -o -q compile process-classes; then
+      if mvn -o -q compile process-classes -Dcheckstyle.skip; then
         touch "$trigger"
       fi
     fi
@@ -42,4 +42,4 @@ watch_and_compile() {
 
 watch_and_compile &
 
-exec mvn spring-boot:run -Dspring-boot.run.profiles=local -Dmaven.test.skip=true
+exec mvn spring-boot:run -Dspring-boot.run.profiles=local -Dmaven.test.skip=true -Dcheckstyle.skip

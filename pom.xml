@@ -283,6 +283,38 @@
       </plugin>
 
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-checkstyle-plugin</artifactId>
+        <version>3.6.0</version>
+        <dependencies>
+          <dependency>
+            <groupId>com.puppycrawl.tools</groupId>
+            <artifactId>checkstyle</artifactId>
+            <version>13.7.0</version>
+          </dependency>
+        </dependencies>
+        <configuration>
+          <configLocation>config/checkstyle/checkstyle.xml</configLocation>
+          <suppressionsLocation>config/checkstyle/suppressions.xml</suppressionsLocation>
+          <includeTestSourceDirectory>true</includeTestSourceDirectory>
+          <includeResources>false</includeResources>
+          <includeTestResources>false</includeTestResources>
+          <consoleOutput>true</consoleOutput>
+          <failOnViolation>true</failOnViolation>
+          <violationSeverity>error</violationSeverity>
+        </configuration>
+        <executions>
+          <execution>
+            <id>house-rules</id>
+            <phase>validate</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
         <groupId>org.sonarsource.scanner.maven</groupId>
         <artifactId>sonar-maven-plugin</artifactId>
         <version>5.1.0.4751</version>

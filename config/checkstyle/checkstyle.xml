@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+  "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+  "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<module name="Checker">
+  <property name="fileExtensions" value="java"/>
+  <property name="severity" value="error"/>
+
+  <module name="SuppressionFilter">
+    <property name="file" value="${checkstyle.suppressions.file}"/>
+    <property name="optional" value="true"/>
+  </module>
+
+  <module name="RegexpMultiline">
+    <property name="id" value="logMessageOnly"/>
+    <property name="format" value="\blog\.(warn|error)\([^;]*\.getMessage\(\)\s*\)\s*;"/>
+    <property name="message" value="Log the throwable itself, not only getMessage()."/>
+  </module>
+
+  <module name="RegexpMultiline">
+    <property name="id" value="bodyAtInfo"/>
+    <property name="format" value="\blog\.info\([^;]*?(\b(body|payload)|\w(Body|Payload))(\(\))?\s*[,)]"/>
+    <property name="message" value="Do not log a request or response body at INFO."/>
+  </module>
+
+  <module name="TreeWalker">
+    <module name="TodoComment">
+      <property name="id" value="idsInComments"/>
+      <property name="format"
+        value="EUDPA-\d+|\b(c|d|q|inc|req)-\d{3}\b|(?i:design release)|DR2\.?1|\bRuled\b|(?i:real service)|\bplan D\d+\b"/>
+      <message key="todo.match"
+        value="Comments must not carry ticket keys, backlog or ruling ids, release names or session words."/>
+    </module>
+
+    <module name="RegexpSinglelineJava">
+      <property name="id" value="idsInTestTitles"/>
+      <property name="format"
+        value="\bDisplayName\(&quot;[^&quot;]*(EUDPA-\d+|\b(c|d|q|inc|req)-\d{3}\b|(?i:design release)|DR2\.?1|\bRuled\b|(?i:real service))"/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Test titles must not carry ticket keys, backlog or ruling ids, release names or session words."/>
+    </module>
+
+    <module name="RegexpSinglelineJava">
+      <property name="id" value="idsInTestNames"/>
+      <property name="format" value="\bvoid\s+\w*(?i:eudpa\d+|designrelease|dr2_?1|realservice)\w*\s*\("/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Test names must not carry ticket keys, release names or session words."/>
+    </module>
+
+    <module name="RegexpSinglelineJava">
+      <property name="id" value="sleepInTests"/>
+      <property name="format" value="\bThread\.(sleep|onSpinWait)\s*\("/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Tests wait on a condition (Awaitility), never Thread.sleep or Thread.onSpinWait."/>
+    </module>
+  </module>
+</module>
