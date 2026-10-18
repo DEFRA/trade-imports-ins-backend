@@ -1,6 +1,6 @@
 # CDP dev environment. Active because spring.profiles.active is derived from ENVIRONMENT.
 
-# EUDPA-390 address lookup spike. cdp-app-config supplies these in dev; the fallbacks are the same
+# Address lookup. cdp-app-config supplies these in dev; the fallbacks are the same
 # real values rather than placeholders, so a missing entry there cannot quietly send the call to a
 # host that does not exist in CDP. They are identifiers, not secrets. This file loads only under
 # the dev profile, so no other environment carries them.

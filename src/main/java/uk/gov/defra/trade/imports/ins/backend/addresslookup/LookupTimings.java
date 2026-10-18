@@ -4,13 +4,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.annotation.Nullable;
 
 /**
- * How long each hop of one search took (plan D7). The three hops are already measured for the
- * logs; this keeps them so the page can show where the time went rather than making someone
- * read OpenSearch.
+ * How long each hop of one search took.
  *
  * <p>{@code stsMs} and {@code entraMs} are null on a warm search. The token hops only run when
- * the cached Entra token has expired, so a cold search and a cached one are different shapes,
- * not different numbers — which is the point worth showing.
+ * the cached Entra token has expired.
  */
 @Schema(description = "Elapsed time per hop, for the search just run")
 public record LookupTimings(

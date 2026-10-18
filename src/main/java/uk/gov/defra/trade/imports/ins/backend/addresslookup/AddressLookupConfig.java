@@ -20,7 +20,7 @@ import org.springframework.security.oauth2.client.web.client.OAuth2ClientHttpReq
 import org.springframework.web.client.RestClient;
 
 /**
- * The dev/local gate for the whole EUDPA-390 address lookup spike.
+ * The dev/local gate for the whole address lookup.
  *
  * <p>Config binding, the token chain ({@link FederatedTokenConfig}) and the lookup client are
  * all gated by {@code @Profile({"dev", "local"})}. The profile comes from {@code ENVIRONMENT},
@@ -63,13 +63,11 @@ class AddressLookupConfig {
         OAuth2AuthorizedClientService addressLookupAuthorizedClientService,
         AddressLookupProperties properties,
         ObjectMapper objectMapper,
-        // Optional on purpose. Metrics are a nice-to-have on a spike; a context without a
-        // registry — a slice test, or metrics turned off — must still start and still search.
         ObjectProvider<MeterRegistry> meterRegistry) {
         // In dev the likeliest failure is configuration rather than code, and a wrong value shows
         // up as a refusal from Entra or the gateway that looks like something else. Identifiers
         // only — no token, assertion or secret is ever logged.
-        log.info("Address lookup spike enabled: apiUrl={} tenantId={} clientId={} scope={} maxResults={} "
+        log.info("Address lookup enabled:apiUrl={} tenantId={} clientId={} scope={} maxResults={} "
                 + "defaultPostcode={} stsEndpointOverride={}",
             properties.apiUrl(), properties.tenantId(), properties.clientId(), properties.clientScope(),
             properties.maxResults(), properties.defaultPostcode(),
@@ -101,8 +99,6 @@ class AddressLookupConfig {
             .baseUrl(properties.apiUrl())
             .requestInterceptor(oauthInterceptor)
             // Registered after the OAuth2 interceptor, so it sees the header that one attached.
-            // "Access token is missing or invalid" covers both halves, and until now nothing
-            // proved which: that a token was obtained does not prove it reached the gateway.
             .requestInterceptor((request, body, execution) -> {
                 String authorization = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
                 log.info("Calling the lookup with authorization={}",

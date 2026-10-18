@@ -13,7 +13,7 @@ import org.springframework.security.web.SecurityFilterChain;
 
 /**
  * Guards the spring.autoconfigure.exclude list in {@code application.yml}. The address lookup
- * spike puts {@code spring-security-config} on the classpath for its outbound OAuth2 client;
+ * puts {@code spring-security-config} on the classpath for its outbound OAuth2 client;
  * without every one of those exclusions Boot builds a {@link SecurityFilterChain} of its own and
  * existing endpoints start demanding credentials. Drop any one of them and this fails.
  */

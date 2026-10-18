@@ -20,8 +20,8 @@ import java.util.List;
  * <p>Durations are published as running totals rather than averages, because a counter is the
  * one shape that survives being summed across a minute's flush and across instances. The
  * dashboard divides: mean lookup time is {@code addressLookup.durationMs.lookup} over
- * {@code addressLookup.searches}. That gives a mean and not a percentile — the publisher cannot
- * carry a distribution, and changing it is a shared concern well outside this spike.
+ * {@code addressLookup.searches}. That gives a mean and not a percentile, because the publisher
+ * cannot carry a distribution.
  */
 class AddressLookupMetrics {
 

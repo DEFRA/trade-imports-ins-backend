@@ -71,8 +71,6 @@ class AddressLookupControllerTest {
 
     @Test
     void lookup_shouldRejectBothParametersAtOnce() throws Exception {
-        // One call can only be one of them, and answering with the postcode result would look
-        // like find behaves the same way — the question the spike exists to settle.
         mockMvc.perform(get("/address-lookup")
                 .param("postcode", "SW1A 1AA")
                 .param("find", "Buckingham Palace"))

@@ -57,7 +57,7 @@ class FederatedTokenConfig {
     StsClient addressLookupStsClient(@Value("${aws.region}") String region, AddressLookupProperties properties) {
         var builder = StsClient.builder().region(Region.of(region));
         if (StringUtils.hasText(properties.stsEndpointOverride())) {
-            log.info("Using STS endpoint override for the address lookup spike: {}", properties.stsEndpointOverride());
+            log.info("Using STS endpoint override for the address lookup: {}", properties.stsEndpointOverride());
             builder.endpointOverride(URI.create(properties.stsEndpointOverride()));
             // The override only ever points at the simulator, which does not check the signature.
             // The SDK still signs the request though, so DefaultCredentialsProvider would fail

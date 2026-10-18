@@ -124,8 +124,8 @@
       <version>4.2.0</version>
     </dependency>
 
-    <!-- EUDPA-390: federated-credential token exchange for the address lookup spike.
-         Bare oauth2-client, not the starter — see plan D4 (avoids Boot's default HTTP Basic). -->
+    <!-- Federated-credential token exchange for the address lookup. Bare oauth2-client, not the
+         starter, which would switch on Boot's default HTTP Basic. -->
     <dependency>
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-oauth2-client</artifactId>

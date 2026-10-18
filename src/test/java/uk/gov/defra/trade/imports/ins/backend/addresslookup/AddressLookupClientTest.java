@@ -245,9 +245,6 @@ class AddressLookupClientTest {
 
     @Test
     void lookupByPostcode_shouldFail_whenTheStsAssertionCannotBeMinted() {
-        // The STS hop runs inside the token exchange. Its failure used to escape as a 500 that
-        // said nothing about which hop broke; the usual cause is a native run with no AWS
-        // credentials on the environment.
         OAuth2AuthorizedClientManager failingManager = authorizeRequest -> {
             throw SdkClientException.create("Unable to load credentials from any of the providers in the chain");
         };
