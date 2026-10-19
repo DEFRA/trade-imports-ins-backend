@@ -138,7 +138,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_storesTheRegionOfOriginSubdivisionCode_andNotTheRegionOfOriginCode() throws Exception {
+    void upsert_shouldStoreTheCountrySubdivisionCode_andNotTheRegionOfOriginCode() throws Exception {
         // Given — a Canary Islands origin; the authority sub-division comes first, so the code is
         // picked by function ('106'), not by position
         JsonNode body = mapper.readTree("""

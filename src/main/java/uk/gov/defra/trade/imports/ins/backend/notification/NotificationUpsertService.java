@@ -18,7 +18,9 @@ public class NotificationUpsertService {
 
   private static final String AGGREGATE_VERSION = "aggregateVersion";
   private static final String ORIGIN_COUNTRY = "originCountry";
-  private static final String REGION_OF_ORIGIN = "106";
+  // UNCL3227 location function 106 (the code list calls it "Region of origin"): here, the country
+  // subdivision the goods came from. Not the region of origin code, which INS does not store.
+  private static final String SUBDIVISION_OF_ORIGIN = "106";
   private final MongoTemplate mongoTemplate;
 
     public void upsert(JsonNode body) {
@@ -43,7 +45,7 @@ public class NotificationUpsertService {
         JsonNode originCountryNode = specifiedConsignment.path(ORIGIN_COUNTRY);
         String originCountry = textOrNull(originCountryNode.path("code").path("value"));
 
-        String originCountrySubdivisionCode = regionOfOriginIdentifier(
+        String originCountrySubdivisionCode = countrySubdivisionCode(
             originCountryNode.path("subordinateTradeCountrySubDivision"));
 
         String arrivalDateStr = textOrNull(
@@ -97,11 +99,11 @@ public class NotificationUpsertService {
         log.info("Upserted aggregatedNotification: aggregateId={}, aggregateVersion={}", aggregateId, incomingVersion);
     }
 
-    // The origin's subdivision is its region of origin sub-division (UNCL3227 '106'); a country
-    // can carry other sub-divisions too, so the code is picked by function, not position.
-    private static String regionOfOriginIdentifier(JsonNode subDivisions) {
+    // The origin's subdivision is its '106' sub-division entry; a country can carry other
+    // sub-divisions too, so the code is picked by function, not position.
+    private static String countrySubdivisionCode(JsonNode subDivisions) {
         for (JsonNode subDivision : subDivisions) {
-            if (REGION_OF_ORIGIN.equals(subDivision.path("functionTypeCode").path("content").asText(null))) {
+            if (SUBDIVISION_OF_ORIGIN.equals(subDivision.path("functionTypeCode").path("content").asText(null))) {
                 return textOrNull(subDivision.path("identifier"));
             }
         }
