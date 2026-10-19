@@ -42,6 +42,81 @@ class NotificationSqsListenerIT extends IntegrationBase {
     }
 
     @Test
+    void notificationFromACountrySubdivision_storesTheSubdivisionCode() {
+        // Given — a Canary Islands origin, as the backend publishes it
+        String body = """
+            {
+              "aggregateId": "%s",
+              "aggregateVersion": 1,
+              "eventType": "uk.gov.defra.imports.notification.NotificationSubmitted",
+              "data": {
+                "exchangedDocument": { "identifier": "GBN-AG-26-001", "notificationStatusCode": "SUBMITTED" },
+                "specifiedConsignment": {
+                  "originCountry": {
+                    "code": { "value": "ES" },
+                    "subordinateTradeCountrySubDivision": [
+                      {
+                        "identifier": "ES-CN",
+                        "urlId": "https://refdata.tbc.defra.gov.uk/country_subdivisions",
+                        "functionTypeCode": { "content": "106" }
+                      }
+                    ],
+                    "regionOfOriginCode": "ES-12345"
+                  }
+                }
+              }
+            }
+            """.formatted(AGGREGATE_ID);
+
+        // When
+        sendToSqs(body, AGGREGATE_ID);
+
+        // Then
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
+            Optional<AggregatedNotification> doc = repository.findById(AGGREGATE_ID);
+            assertThat(doc).isPresent();
+            assertThat(doc.get().getOriginCountry()).isEqualTo("ES");
+            assertThat(doc.get().getOriginCountrySubdivisionCode()).isEqualTo("ES-CN");
+        });
+    }
+
+    @Test
+    void amendmentToAWholeCountryOrigin_clearsTheSubdivisionCode() {
+        // Given — a Canary Islands origin is stored
+        String subdivisionOrigin = """
+            {
+              "aggregateId": "%s",
+              "aggregateVersion": 1,
+              "eventType": "uk.gov.defra.imports.notification.NotificationSubmitted",
+              "data": {
+                "specifiedConsignment": {
+                  "originCountry": {
+                    "code": { "value": "ES" },
+                    "subordinateTradeCountrySubDivision": [
+                      { "identifier": "ES-CN", "functionTypeCode": { "content": "106" } }
+                    ]
+                  }
+                }
+              }
+            }
+            """.formatted(AGGREGATE_ID);
+        sendToSqs(subdivisionOrigin, AGGREGATE_ID);
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
+            assertThat(repository.findById(AGGREGATE_ID))
+                .hasValueSatisfying(doc -> assertThat(doc.getOriginCountrySubdivisionCode()).isEqualTo("ES-CN")));
+
+        // When — a later version moves the origin to a whole country
+        sendToSqs(notificationEdited(2), AGGREGATE_ID);
+
+        // Then
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
+            assertThat(repository.findById(AGGREGATE_ID)).hasValueSatisfying(doc -> {
+                assertThat(doc.getOriginCountry()).isEqualTo("GB");
+                assertThat(doc.getOriginCountrySubdivisionCode()).isNull();
+            }));
+    }
+
+    @Test
     void deliveringSameEventTwice_isIdempotent() {
         // Given
         String body = notificationEdited(1);
