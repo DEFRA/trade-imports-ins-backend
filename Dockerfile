@@ -22,11 +22,12 @@ RUN mvn dependency:go-offline -B
 
 # Copy source code
 COPY src ./src
+COPY config ./config
 
 # Build without running tests
 # Tests are run separately in CI/CD pipeline and locally
 # (Testcontainers requires Docker, which isn't available inside Docker build)
-RUN mvn clean package -DskipTests -Dcheckstyle.skip -B
+RUN mvn clean package -DskipTests -B
 
 ################################################################################
 # Stage 2: Development (run pre-built JAR)
@@ -79,6 +80,7 @@ COPY pom.xml .
 
 # Source is volume-mounted at runtime; copy here only so the image builds
 COPY src ./src
+COPY config ./config
 
 # Hot-reload entrypoint: mtime-poll compile loop + `mvn spring-boot:run`
 COPY docker/dev-run.sh /usr/local/bin/dev-run.sh
