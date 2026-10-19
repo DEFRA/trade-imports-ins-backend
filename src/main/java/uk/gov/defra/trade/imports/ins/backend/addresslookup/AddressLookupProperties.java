@@ -10,13 +10,8 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.validation.annotation.Validated;
 
 /**
- * EUDPA-390 address lookup spike — dev/local only, see {@link AddressLookupConfig}.
- *
- * <p>{@code oauthTokenUrl} is expected to already carry the tenant (built in YAML via a
- * {@code ${address-lookup.tenant-id}} placeholder), so no URL assembly happens in code.
- *
- * <p>Carries the dev/local {@code @Profile} because {@code @ConfigurationPropertiesScan} would
- * otherwise register it — and then fail validation — in profiles that supply no values.
+ * Address lookup settings, bound in the {@code dev} and {@code local} profiles only.
+ * {@code oauthTokenUrl} is the full token URL, tenant included.
  */
 @Validated
 @Profile({"dev", "local"})

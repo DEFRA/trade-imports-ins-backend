@@ -1,8 +1,10 @@
 package uk.gov.defra.trade.imports.ins.backend.notification;
 
+import io.awspring.cloud.sqs.listener.SqsHeaders;
 import io.awspring.cloud.sqs.listener.errorhandler.ErrorHandler;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.Message;
 import org.springframework.stereotype.Component;
@@ -28,14 +30,18 @@ public class NotificationErrorHandler implements ErrorHandler<Object> {
     @Override
     public void handle(Message<Object> message, Throwable t) {
         Throwable classified = findClassifiedCause(t);
+        Object aggregateId = message.getHeaders().get(SqsHeaders.MessageSystemAttributes.SQS_MESSAGE_GROUP_ID_HEADER);
+        UUID messageId = message.getHeaders().getId();
         if (classified instanceof SqsRetryableException retryableException) {
             retryCounter.increment();
-            log.warn("Retryable error, message left for retry: {}", classified.getMessage());
+            log.warn("Retryable error, message left for retry: aggregateId={}, messageId={}",
+                aggregateId, messageId, t);
             throw retryableException;
         }
 
         discardedCounter.increment();
-        log.error("Non-retryable error, message will be deleted: {}", classified.getMessage(), t);
+        log.error("Non-retryable error, message will be deleted: aggregateId={}, messageId={}",
+            aggregateId, messageId, t);
     }
 
     private Throwable findClassifiedCause(Throwable t) {

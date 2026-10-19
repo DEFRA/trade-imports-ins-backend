@@ -63,7 +63,7 @@ aws:
     notification:
       queue-url: ${NOTIFICATION_SQS_QUEUE_URL:http://localhost:4566/000000000000/trade_imports_animals_eu_notifications_ins_backend.fifo}
 
-# EUDPA-390 address lookup spike, pointed at the trade-imports-stub simulators. Running outside
+# Address lookup, pointed at the trade-imports-stub simulators. Running outside
 # the stack (mvn spring-boot:run), the stub's port is reached via localhost; the stack overrides
 # each URL with a host.docker.internal one through the environment variables below.
 address-lookup:

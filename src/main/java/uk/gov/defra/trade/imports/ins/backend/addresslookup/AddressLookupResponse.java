@@ -6,10 +6,10 @@ import jakarta.annotation.Nullable;
 import java.util.List;
 
 /**
- * Backend → frontend body for {@code GET /address-lookup}. Always HTTP 200 — a failed lookup
- * is {@link Outcome#FAILED}, so the spike page can render a message.
+ * Body of {@code GET /address-lookup}. Always HTTP 200: a failed lookup is
+ * {@link Outcome#FAILED}.
  */
-@Schema(description = "Address lookup spike result. Always HTTP 200; failure is an outcome.")
+@Schema(description = "Address lookup result. Always HTTP 200; failure is an outcome.")
 public record AddressLookupResponse(
     @Schema(description = "What happened", requiredMode = RequiredMode.REQUIRED) Outcome outcome,
     @Schema(description = "The search that was run", requiredMode = RequiredMode.REQUIRED) Query query,
@@ -29,10 +29,6 @@ public record AddressLookupResponse(
         returnedResults = results.size();
     }
 
-    /**
-     * Timings are attached once the search is over, so the factories below can stay about the
-     * outcome and the client can add the measurements in one place.
-     */
     AddressLookupResponse withTimings(@Nullable LookupTimings newTimings) {
         return new AddressLookupResponse(
             outcome, query, results, totalResults, returnedResults, failureReason, newTimings);

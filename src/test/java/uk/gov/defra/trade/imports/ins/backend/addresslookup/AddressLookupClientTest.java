@@ -30,14 +30,6 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import software.amazon.awssdk.core.exception.SdkClientException;
 
-/**
- * Unit-tests {@link AddressLookupClient} against a mocked lookup endpoint. The
- * token chain itself ({@link FederatedTokenConfigTest}) is replaced with an
- * {@link OAuth2AuthorizedClientManager} stub that hands back a fixed token with no HTTP call.
- *
- * <p>The client is built the same way production is: Spring Security's interceptor lives on
- * the RestClient, so the GET has no OAuth attributes of its own.
- */
 class AddressLookupClientTest {
 
     private static final String LOOKUP_URL = "http://localhost:8087/simulator/address-lookup/v2.1/addresses";
@@ -79,7 +71,7 @@ class AddressLookupClientTest {
     }
 
     @Test
-    void lookupByPostcode_shouldReportTheTimeTheSearchTook() {
+    void lookupByPostcode_shouldReportCachedTokenTimings_whenTheTokenManagerMintsNothing() {
         mockServer.expect(method(HttpMethod.GET))
             .andRespond(withStatus(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body("""
                 { "header": { "totalResults": "0" }, "results": [] }
@@ -87,7 +79,6 @@ class AddressLookupClientTest {
 
         AddressLookupResponse response = addressLookupClient.lookupByPostcode("SW1A 1AA");
 
-        // The token manager here is a stub that mints nothing, so this is the cached shape.
         assertThat(response.timings()).isNotNull();
         assertThat(response.timings().tokenSource()).isEqualTo(LookupTimings.TokenSource.CACHED);
         assertThat(response.timings().lookupMs()).isGreaterThanOrEqualTo(0);
@@ -229,8 +220,6 @@ class AddressLookupClientTest {
 
     @Test
     void lookupByPostcode_shouldRetryOnlyOnce_whenTheSecondCallIsAlso401() {
-        // A second 401 is not a stale token — a wrong audience answers identically, and the whole
-        // estate shares 300 requests a minute.
         mockServer.expect(method(HttpMethod.GET))
             .andRespond(withStatus(HttpStatus.UNAUTHORIZED).contentType(MediaType.APPLICATION_JSON).body("{}"));
         mockServer.expect(method(HttpMethod.GET))
@@ -245,9 +234,6 @@ class AddressLookupClientTest {
 
     @Test
     void lookupByPostcode_shouldFail_whenTheStsAssertionCannotBeMinted() {
-        // The STS hop runs inside the token exchange. Its failure used to escape as a 500 that
-        // said nothing about which hop broke; the usual cause is a native run with no AWS
-        // credentials on the environment.
         OAuth2AuthorizedClientManager failingManager = authorizeRequest -> {
             throw SdkClientException.create("Unable to load credentials from any of the providers in the chain");
         };

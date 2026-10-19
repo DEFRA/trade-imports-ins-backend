@@ -16,11 +16,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Loads X509 certificates from TRUSTSTORE_* environment variables.
- *
- * This component handles the decoding and parsing of base64-encoded PEM certificates
- * provided by the CDP platform. Individual certificate failures are logged but do not
- * prevent the application from starting.
+ * Loads the custom X.509 certificate held base64-encoded in {@code cdp.certificate}. Returns
+ * {@code null} when none is set or it cannot be parsed, so the application still starts.
  */
 @Component
 @Slf4j
@@ -45,7 +42,6 @@ public class CertificateLoader {
         try {
             cf = CertificateFactory.getInstance("X.509");
         } catch (CertificateException e) {
-            log.error("Failed to get X.509 CertificateFactory: {}", e.getMessage());
             throw new IllegalStateException("Cannot initialize certificate factory", e);
         }
         
@@ -57,7 +53,7 @@ public class CertificateLoader {
                 cert.getSubjectX500Principal().getName());
 
         } catch (CertificateException e) {
-            log.error("Failed to parse certificate: {}. Skipping.", e.getMessage());
+            log.error("Failed to parse the custom certificate; continuing without it", e);
         }
         
         return cert;

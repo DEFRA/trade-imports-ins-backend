@@ -16,14 +16,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Global exception handler for REST API error responses.
- * <p>
- * Uses Spring 6 ProblemDetail (RFC 7807) for standardized error responses. Includes request trace
- * ID in error responses for log correlation.
- * <p>
- * CDP Compliance: - Structured error responses with trace ID - Proper HTTP status codes (400, 404,
- * 409, 500) - Validation errors with field-level details - Logs errors with trace ID for
- * troubleshooting
+ * Turns application exceptions into RFC 7807 {@link ProblemDetail} responses that carry the
+ * request's trace id, and logs each one with that trace id.
  */
 @RestControllerAdvice
 @Slf4j
@@ -37,7 +31,7 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(MethodArgumentNotValidException.class)
   public ProblemDetail handleValidationException(MethodArgumentNotValidException ex) {
     String traceId = MDC.get(MDC_TRACE_ID);
-    log.warn("Validation error (trace: {}): {}", traceId, ex.getMessage());
+    log.warn("Validation error (trace: {})", traceId, ex);
 
     ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
         HttpStatus.BAD_REQUEST,
@@ -47,12 +41,10 @@ public class GlobalExceptionHandler {
     problemDetail.setType(URI.create("https://api.cdp.defra.cloud/problems/validation-error"));
     problemDetail.setTitle("Validation Error");
 
-    // Add trace ID for log correlation
     if (traceId != null) {
       problemDetail.setProperty("traceId", traceId);
     }
 
-    // Add field-level validation errors
     Map<String, String> errors = new HashMap<>();
     for (FieldError error : ex.getBindingResult().getFieldErrors()) {
       errors.put(error.getField(), error.getDefaultMessage());
@@ -68,7 +60,7 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(ConstraintViolationException.class)
   public ProblemDetail handleConstraintViolationException(ConstraintViolationException ex) {
     String traceId = MDC.get(MDC_TRACE_ID);
-    log.warn("Constraint violation (trace: {}): {}", traceId, ex.getMessage());
+    log.warn("Constraint violation (trace: {})", traceId, ex);
 
     ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
         HttpStatus.BAD_REQUEST,
@@ -84,15 +76,18 @@ public class GlobalExceptionHandler {
 
     Map<String, String> errors = new HashMap<>();
     for (ConstraintViolation<?> violation : ex.getConstraintViolations()) {
-      String propertyPath = violation.getPropertyPath().toString();
-      String field = propertyPath.contains(".")
-          ? propertyPath.substring(propertyPath.lastIndexOf('.') + 1)
-          : propertyPath;
-      errors.put(field, violation.getMessage());
+      errors.put(lastPathSegment(violation), violation.getMessage());
     }
     problemDetail.setProperty("errors", errors);
 
     return problemDetail;
+  }
+
+  private static String lastPathSegment(ConstraintViolation<?> violation) {
+    String propertyPath = violation.getPropertyPath().toString();
+    return propertyPath.contains(".")
+        ? propertyPath.substring(propertyPath.lastIndexOf('.') + 1)
+        : propertyPath;
   }
 
   /**
@@ -101,7 +96,7 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(NotFoundException.class)
   public ProblemDetail handleNotFoundException(NotFoundException ex) {
     String traceId = MDC.get(MDC_TRACE_ID);
-    log.warn("Resource not found (trace: {}): {}", traceId, ex.getMessage());
+    log.warn("Resource not found (trace: {})", traceId, ex);
 
     ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
         HttpStatus.NOT_FOUND,
@@ -124,7 +119,7 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(ConflictException.class)
   public ProblemDetail handleConflictException(ConflictException ex) {
     String traceId = MDC.get(MDC_TRACE_ID);
-    log.warn("Resource conflict (trace: {}): {}", traceId, ex.getMessage());
+    log.warn("Resource conflict (trace: {})", traceId, ex);
 
     ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
         HttpStatus.CONFLICT,
@@ -142,11 +137,7 @@ public class GlobalExceptionHandler {
   }
 
   /**
-   * Handle unexpected errors (500 Internal Server Error).
-   * <p>
-   * Note: Does NOT catch Spring framework exceptions like NoResourceFoundException (404) or other
-   * HTTP-related exceptions. Only catches application-level exceptions. This allows Spring to
-   * handle its own exceptions appropriately (e.g., 404 for missing endpoints).
+   * Handle unexpected runtime errors (500 Internal Server Error).
    */
   @ExceptionHandler({
       RuntimeException.class,
@@ -155,7 +146,7 @@ public class GlobalExceptionHandler {
   })
   public ProblemDetail handleException(Exception ex) {
     String traceId = MDC.get(MDC_TRACE_ID);
-    log.error("Unexpected error (trace: {}): {}", traceId, ex.getMessage(), ex);
+    log.error("Unexpected error (trace: {})", traceId, ex);
 
     ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
         HttpStatus.INTERNAL_SERVER_ERROR,
