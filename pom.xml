@@ -294,7 +294,7 @@
           </dependency>
         </dependencies>
         <configuration>
-          <configLocation>config/checkstyle/checkstyle.xml</configLocation>
+          <configLocation>config/checkstyle/code-quality.xml</configLocation>
           <suppressionsLocation>config/checkstyle/suppressions.xml</suppressionsLocation>
           <includeTestSourceDirectory>true</includeTestSourceDirectory>
           <includeResources>false</includeResources>
@@ -305,7 +305,7 @@
         </configuration>
         <executions>
           <execution>
-            <id>house-rules</id>
+            <id>code-quality</id>
             <phase>validate</phase>
             <goals>
               <goal>check</goal>
