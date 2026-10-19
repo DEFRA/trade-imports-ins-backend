@@ -59,6 +59,7 @@ class AddressLookupMetrics {
     }
 
     private void add(String name, long millis) {
-        meterRegistry.counter(PREFIX + name).increment(millis);
+        var amount = (double) millis;
+        meterRegistry.counter(PREFIX + name).increment(amount);
     }
 }
