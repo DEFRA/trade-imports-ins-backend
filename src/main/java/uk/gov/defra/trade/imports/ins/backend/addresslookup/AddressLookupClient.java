@@ -34,15 +34,14 @@ class AddressLookupClient {
     }
 
     AddressLookupResponse lookupByPostcode(String postcode) {
-        return lookup(AddressLookupResponse.Mode.POSTCODE, postcode);
+        return searchAndRecordMetrics(AddressLookupResponse.Mode.POSTCODE, postcode);
     }
 
     AddressLookupResponse lookupByFind(String find) {
-        return lookup(AddressLookupResponse.Mode.FIND, find);
+        return searchAndRecordMetrics(AddressLookupResponse.Mode.FIND, find);
     }
 
-    /** One place every search returns through, so no path can skip the metrics. */
-    private AddressLookupResponse lookup(AddressLookupResponse.Mode mode, String term) {
+    private AddressLookupResponse searchAndRecordMetrics(AddressLookupResponse.Mode mode, String term) {
         AddressLookupResponse response = runSearch(mode, term);
         metrics.recordSearch(response);
         return response;
@@ -77,9 +76,6 @@ class AddressLookupClient {
     }
 
     private AddressLookupResponse get(AddressLookupResponse.Query query) {
-        // Measured around the whole exchange, which on a cold search includes the token hops the
-        // interceptor runs inside it. LookupTimings takes those back off, so what it reports is
-        // the gateway's own time either way.
         long start = System.currentTimeMillis();
         try {
             return restClient.get()
@@ -93,16 +89,6 @@ class AddressLookupClient {
         }
     }
 
-    /**
-     * Spring refreshes the token when it expires, but a token can stop being accepted before then —
-     * a revoked registration, or a changed gateway policy. The cached one is then handed out on
-     * every call until its own expiry, which is an hour of 401s with no token hops in the logs to
-     * explain them. Dropping the cached client makes the next call mint a fresh one.
-     *
-     * <p>Once only, and only for a 401. A second 401 means the token is not the problem — a wrong
-     * audience answers exactly the same way — and retrying further would just double every failing
-     * call against a service the whole estate shares 300 requests a minute of.
-     */
     private AddressLookupResponse retryWithAFreshToken(AddressLookupResponse.Query query) {
         log.warn("Address lookup was refused with 401; evicting the cached token and retrying once");
         authorizedClientService.removeAuthorizedClient(
@@ -121,11 +107,6 @@ class AddressLookupClient {
         return mapper.map(query, response.getStatusCode(), response.getHeaders().getContentType(), responseBody);
     }
 
-    /**
-     * The status alone cannot tell a rejected token from a missing subscription key — only the
-     * gateway's own words can, and they arrive in the body. Truncated because an API gateway can
-     * answer with a whole HTML page.
-     */
     private void logRefusal(int status, HttpHeaders headers, String body) {
         log.warn("Address lookup refused the call: status={} wwwAuthenticate={} body={}",
             status,

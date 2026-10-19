@@ -25,10 +25,8 @@ public record LookupTimings(
     }
 
     /**
-     * @param exchangeMs the whole lookup exchange, which on a cold search also contains the token
-     *     hops, because Spring Security runs them from inside it. Taking them back off leaves the
-     *     gateway's own time, which is the number worth comparing between a cold search and a
-     *     warm one.
+     * @param exchangeMs the whole lookup exchange, including any token hops run inside it;
+     *     {@code lookupMs} is this less {@code stsMs} and {@code entraMs}
      */
     static LookupTimings of(@Nullable Long stsMs, @Nullable Long entraMs, long exchangeMs, long totalMs) {
         long tokenMs = (stsMs == null ? 0 : stsMs) + (entraMs == null ? 0 : entraMs);

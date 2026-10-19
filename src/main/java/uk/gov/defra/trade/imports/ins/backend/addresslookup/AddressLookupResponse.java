@@ -29,10 +29,6 @@ public record AddressLookupResponse(
         returnedResults = results.size();
     }
 
-    /**
-     * Timings are attached once the search is over, so the factories below can stay about the
-     * outcome and the client can add the measurements in one place.
-     */
     AddressLookupResponse withTimings(@Nullable LookupTimings newTimings) {
         return new AddressLookupResponse(
             outcome, query, results, totalResults, returnedResults, failureReason, newTimings);

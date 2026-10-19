@@ -16,14 +16,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Global exception handler for REST API error responses.
- * <p>
- * Uses Spring 6 ProblemDetail (RFC 7807) for standardized error responses. Includes request trace
- * ID in error responses for log correlation.
- * <p>
- * CDP Compliance: - Structured error responses with trace ID - Proper HTTP status codes (400, 404,
- * 409, 500) - Validation errors with field-level details - Logs errors with trace ID for
- * troubleshooting
+ * Turns application exceptions into RFC 7807 {@link ProblemDetail} responses that carry the
+ * request's trace id, and logs each one with that trace id.
  */
 @RestControllerAdvice
 @Slf4j
@@ -47,12 +41,10 @@ public class GlobalExceptionHandler {
     problemDetail.setType(URI.create("https://api.cdp.defra.cloud/problems/validation-error"));
     problemDetail.setTitle("Validation Error");
 
-    // Add trace ID for log correlation
     if (traceId != null) {
       problemDetail.setProperty("traceId", traceId);
     }
 
-    // Add field-level validation errors
     Map<String, String> errors = new HashMap<>();
     for (FieldError error : ex.getBindingResult().getFieldErrors()) {
       errors.put(error.getField(), error.getDefaultMessage());
@@ -84,15 +76,18 @@ public class GlobalExceptionHandler {
 
     Map<String, String> errors = new HashMap<>();
     for (ConstraintViolation<?> violation : ex.getConstraintViolations()) {
-      String propertyPath = violation.getPropertyPath().toString();
-      String field = propertyPath.contains(".")
-          ? propertyPath.substring(propertyPath.lastIndexOf('.') + 1)
-          : propertyPath;
-      errors.put(field, violation.getMessage());
+      errors.put(lastPathSegment(violation), violation.getMessage());
     }
     problemDetail.setProperty("errors", errors);
 
     return problemDetail;
+  }
+
+  private static String lastPathSegment(ConstraintViolation<?> violation) {
+    String propertyPath = violation.getPropertyPath().toString();
+    return propertyPath.contains(".")
+        ? propertyPath.substring(propertyPath.lastIndexOf('.') + 1)
+        : propertyPath;
   }
 
   /**
@@ -142,11 +137,7 @@ public class GlobalExceptionHandler {
   }
 
   /**
-   * Handle unexpected errors (500 Internal Server Error).
-   * <p>
-   * Note: Does NOT catch Spring framework exceptions like NoResourceFoundException (404) or other
-   * HTTP-related exceptions. Only catches application-level exceptions. This allows Spring to
-   * handle its own exceptions appropriately (e.g., 404 for missing endpoints).
+   * Handle unexpected runtime errors (500 Internal Server Error).
    */
   @ExceptionHandler({
       RuntimeException.class,

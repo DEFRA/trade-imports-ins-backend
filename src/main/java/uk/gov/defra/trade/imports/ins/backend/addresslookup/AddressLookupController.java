@@ -18,10 +18,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 /**
  * {@code GET /address-lookup}. Takes either {@code postcode} or {@code find}, and with neither
- * searches the configured default postcode.
- *
- * <p>Carries the {@code @Profile} of {@link AddressLookupConfig} itself, because Spring MVC only
- * registers {@code @Controller} stereotypes as handlers, so this cannot be a bean that config makes.
+ * searches the configured default postcode. Exists in the {@code dev} and {@code local}
+ * profiles only.
  */
 @RestController
 @RequestMapping("/address-lookup")

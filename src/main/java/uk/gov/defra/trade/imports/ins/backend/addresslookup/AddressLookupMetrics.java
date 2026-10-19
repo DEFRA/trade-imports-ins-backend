@@ -5,24 +5,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * Publishes the search's own numbers as Micrometer meters, so they reach CloudWatch through
- * {@code EmfMetricsPublisher} and can be put on a Grafana dashboard (CDP monitoring guide:
- * dashboards live in {@code Playground/trade-imports-ins-backend-monitoring}, CloudWatch
- * datasource, namespace = the service name).
- *
- * <p><strong>Counters only, with the dimension in the name.</strong> That publisher writes name
- * and value and nothing else: Micrometer tags are dropped, and every measurement of a meter is
- * published under the meter's name. A {@code Timer} would therefore publish its count, total and
- * max as three values all called the same thing, and two meters differing only by a tag would
- * collide. So each thing worth counting gets its own name.
- *
- * <p>Durations are published as running totals rather than averages, because a counter is the
- * one shape that survives being summed across a minute's flush and across instances. The
- * dashboard divides: mean lookup time is {@code addressLookup.durationMs.lookup} over
- * {@code addressLookup.searches}. That gives a mean and not a percentile, because the publisher
- * cannot carry a distribution.
- */
 class AddressLookupMetrics {
 
     private static final String PREFIX = "addressLookup.";
@@ -31,16 +13,10 @@ class AddressLookupMetrics {
 
     AddressLookupMetrics(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
-        registerAtZero();
+        registerEveryCounterAtZero();
     }
 
-    /**
-     * A counter created by its first increment is first scraped already above zero, and a
-     * Prometheus {@code increase()} cannot see that first rise. Creating every counter up front
-     * lets the local dashboard count the first search too. CloudWatch is unaffected: the publisher
-     * sends a 0 for the first minute, then removes the counters as it does every minute.
-     */
-    private void registerAtZero() {
+    private void registerEveryCounterAtZero() {
         List<String> names = new ArrayList<>(List.of("searches", "durationMs.lookup", "durationMs.total"));
         Arrays.stream(AddressLookupResponse.Mode.values()).map(AddressLookupMetrics::mode).forEach(names::add);
         Arrays.stream(AddressLookupResponse.Outcome.values()).map(AddressLookupMetrics::outcome).forEach(names::add);
