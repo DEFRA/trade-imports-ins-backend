@@ -177,6 +177,33 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
+    void upsert_shouldStoreDashboardCommodityFromTradeLineDescription() throws Exception {
+        JsonNode body = mapper.readTree("""
+            {
+              "aggregateId": "agg-1",
+              "aggregateVersion": 1,
+              "data": {
+                "specifiedConsignment": {
+                  "includedConsignmentItem": [{
+                    "includedTradeLineItem": [{
+                      "description": ["Live bovine animals"],
+                      "commonName": "Domestic cattle"
+                    }]
+                  }]
+                }
+              }
+            }
+            """);
+
+        service.upsert(body);
+
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
+        Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertThat(setFields).containsEntry("commodity", "Live bovine animals");
+    }
+
+    @Test
     void upsert_shouldClearSubdivisionCode_whenOriginIsAWholeCountry() throws Exception {
         // Given — a whole-country origin, as after an amendment away from a subdivision
         JsonNode body = mapper.readTree(fullNotificationEdited(1));

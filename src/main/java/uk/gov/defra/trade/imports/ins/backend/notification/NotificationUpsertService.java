@@ -54,11 +54,13 @@ public class NotificationUpsertService {
                 .path("arrivalEvent").path(0)
                 .path("scheduledOccurrenceDateTime"));
 
-        String commodity = textOrNull(
-            specifiedConsignment
-                .path("includedConsignmentItem").path(0)
-                .path("includedTradeLineItem").path(0)
-                .path("commonName"));
+        JsonNode firstTradeLine = specifiedConsignment
+            .path("includedConsignmentItem").path(0)
+            .path("includedTradeLineItem").path(0);
+        String commodity = textOrNull(firstTradeLine.path("description").path(0));
+        if (commodity == null) {
+            commodity = textOrNull(firstTradeLine.path("commonName"));
+        }
 
         Instant lastUpdated = lastUpdatedStr != null
             ? parseInstant(lastUpdatedStr, "issueDateTime", aggregateId)
