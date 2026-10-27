@@ -1,6 +1,7 @@
 package uk.gov.defra.trade.imports.ins.backend.notification;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -29,6 +30,6 @@ public class AggregatedNotification {
     // MDM subdivision code (e.g. ES-CN, Canary Islands) when the origin is part of a country.
     private String originCountrySubdivisionCode;
     private String commodity;
-    private Instant arrivalDate;
+    private LocalDate arrivalDate;
     private Instant lastUpdated;
 }

@@ -4,19 +4,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.Date;
 import java.util.Optional;
+import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotification;
 import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotificationRepository;
 
 class NotificationSqsListenerIT extends IntegrationBase {
 
     private static final String AGGREGATE_ID = "Imports.Notification.GBN-AG.GBN-AG-26-001";
+    private static final String NOTIFICATIONS_COLLECTION = "notifications";
 
     @Autowired
     private AggregatedNotificationRepository repository;
+
+    @Autowired
+    private MongoTemplate mongoTemplate;
 
     @BeforeEach
     void setup() {
@@ -38,6 +47,24 @@ class NotificationSqsListenerIT extends IntegrationBase {
             assertThat(doc.get().getOriginCountry()).isEqualTo("GB");
             assertThat(doc.get().getCommodity()).isEqualTo("Dog");
             assertThat(doc.get().getAggregateVersion()).isEqualTo(1L);
+            assertThat(doc.get().getArrivalDate()).isEqualTo(LocalDate.of(2026, 8, 20));
+        });
+    }
+
+    @Test
+    void notificationEdited_storesTheArrivalDateAsAnIsoDateString_andLastUpdatedAsADate() {
+        // Given
+        sendToSqs(notificationEdited(1), AGGREGATE_ID);
+
+        // When / Then
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
+            Document stored = mongoTemplate.getCollection(NOTIFICATIONS_COLLECTION)
+                .find(new Document("_id", AGGREGATE_ID))
+                .first();
+            assertThat(stored).isNotNull();
+            assertThat(stored.get("arrivalDate")).isEqualTo("2026-08-20");
+            assertThat(stored.get("lastUpdated", Date.class).toInstant())
+                .isEqualTo(Instant.parse("2026-08-19T10:00:00Z"));
         });
     }
 

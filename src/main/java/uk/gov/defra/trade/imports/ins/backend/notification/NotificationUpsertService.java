@@ -2,6 +2,8 @@ package uk.gov.defra.trade.imports.ins.backend.notification;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -64,8 +66,9 @@ public class NotificationUpsertService {
             ? parseInstant(lastUpdatedStr, "issueDateTime", aggregateId)
             : Instant.now();
 
-        Instant arrivalDate = arrivalDateStr != null
+        LocalDate arrivalDate = arrivalDateStr != null
             ? parseInstant(arrivalDateStr, "scheduledOccurrenceDateTime", aggregateId)
+                .atZone(ZoneOffset.UTC).toLocalDate()
             : null;
 
         // Single atomic operation: only applies when the stored version is lower than the incoming

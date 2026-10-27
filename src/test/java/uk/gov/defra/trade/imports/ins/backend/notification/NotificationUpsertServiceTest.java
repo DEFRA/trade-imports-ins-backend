@@ -8,10 +8,15 @@ import static org.mockito.Mockito.verify;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDate;
+import java.util.TimeZone;
 import org.bson.Document;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -27,10 +32,17 @@ class NotificationUpsertServiceTest {
 
     private NotificationUpsertService service;
     private final ObjectMapper mapper = new ObjectMapper();
+    private TimeZone originalZone;
 
     @BeforeEach
     void setup() {
         service = new NotificationUpsertService(mongoTemplate);
+        originalZone = TimeZone.getDefault();
+    }
+
+    @AfterEach
+    void restoreZone() {
+        TimeZone.setDefault(originalZone);
     }
 
     @Test
@@ -98,6 +110,36 @@ class NotificationUpsertServiceTest {
         assertThatThrownBy(() -> service.upsert(body))
             .isInstanceOf(SqsNonRetryableException.class)
             .hasMessageContaining("issueDateTime")
+            .hasMessageContaining("agg-1");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"America/New_York", "Pacific/Auckland"})
+    void upsert_shouldSetTheUtcCalendarDayOfTheScheduledArrival_whateverTheJvmDefaultZone(
+        String zoneId) throws Exception {
+        // Given
+        TimeZone.setDefault(TimeZone.getTimeZone(zoneId));
+        JsonNode body = mapper.readTree(eventScheduledToArriveAt("2026-07-21T00:00:00Z"));
+
+        // When
+        service.upsert(body);
+
+        // Then
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
+        Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertThat(setFields).containsEntry("arrivalDate", LocalDate.of(2026, 7, 21));
+    }
+
+    @Test
+    void upsert_throwsNonRetryable_whenScheduledOccurrenceDateTimeIsMalformed() throws Exception {
+        // Given
+        JsonNode body = mapper.readTree(eventScheduledToArriveAt("2026-07-21"));
+
+        // When / Then
+        assertThatThrownBy(() -> service.upsert(body))
+            .isInstanceOf(SqsNonRetryableException.class)
+            .hasMessageContaining("scheduledOccurrenceDateTime")
             .hasMessageContaining("agg-1");
     }
 
@@ -192,6 +234,22 @@ class NotificationUpsertServiceTest {
         assertThat(setFields).containsEntry("originCountry", "GB")
             .doesNotContainKey("originCountrySubdivisionCode");
         assertThat(unsetFields).containsKey("originCountrySubdivisionCode");
+    }
+
+    private static String eventScheduledToArriveAt(String scheduledOccurrenceDateTime) {
+        return """
+            {
+              "aggregateId": "agg-1",
+              "aggregateVersion": 1,
+              "data": {
+                "specifiedConsignment": {
+                  "mainCarriageLogisticsTransportMovement": [
+                    { "arrivalEvent": [{ "scheduledOccurrenceDateTime": "%s" }] }
+                  ]
+                }
+              }
+            }
+            """.formatted(scheduledOccurrenceDateTime);
     }
 
     private static String fullNotificationEdited(long version) {
