@@ -11,7 +11,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.mongodb.core.convert.MongoCustomConversions;
 import javax.net.ssl.SSLContext;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import uk.gov.defra.trade.imports.ins.backend.configuration.tls.TrustStoreConfiguration;
 
@@ -69,6 +71,13 @@ public class MongoConfig {
       log.info("MongoDB client configuration complete");
       
     return builder.build();
+  }
+
+  @Bean
+  MongoCustomConversions mongoCustomConversions() {
+    return new MongoCustomConversions(List.of(
+        new LocalDateStringConverters.LocalDateToStringConverter(),
+        new LocalDateStringConverters.StringToLocalDateConverter()));
   }
 
   @Bean
