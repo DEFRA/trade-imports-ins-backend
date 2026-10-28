@@ -54,19 +54,6 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
             .andExpect(jsonPath("$.page").value(1));
     }
 
-    @Test
-    void findAll_sortAscending_isHonoured() throws Exception {
-        // Given
-        seed("agg-earlier", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-08-01");
-        seed("agg-later", "GBN-AG-26-002", "DRAFT", "FR", "Live cattle", "2026-08-20");
-
-        // When / Then
-        mockMvc.perform(get("/notifications").param("sort", "arrivalDate,asc"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.content[0].referenceNumber").value("GBN-AG-26-001"))
-            .andExpect(jsonPath("$.content[1].referenceNumber").value("GBN-AG-26-002"));
-    }
-
     @ParameterizedTest
     @CsvSource({
         "'arrivalDate,asc', GBN-AG-25-012, GBN-AG-26-001, GBN-AG-26-009",
