@@ -52,15 +52,14 @@ class NotificationUpsertServiceTest {
         service.upsert(body);
 
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
-        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        verify(mongoTemplate).upsert(queryCaptor.capture(), updateCaptor.capture(), eq(AggregatedNotification.class));
+        verify(mongoTemplate).upsert(queryCaptor.capture(), any(Update.class), eq(AggregatedNotification.class));
 
         Document queryDoc = queryCaptor.getValue().getQueryObject();
         assertThat(queryDoc).containsEntry("_id", "agg-1");
         Document versionFilter = queryDoc.get("aggregateVersion", Document.class);
         assertThat(versionFilter).containsEntry("$lt", 3L);
 
-        Document updateDoc = updateCaptor.getValue().getUpdateObject();
+        Document updateDoc = lastUpsertUpdateDocument();
         Document setOnInsert = updateDoc.get("$setOnInsert", Document.class);
         assertThat(setOnInsert).containsEntry("_id", "agg-1");
         Document setFields = updateDoc.get("$set", Document.class);
@@ -121,10 +120,7 @@ class NotificationUpsertServiceTest {
         service.upsert(body);
 
         // Then
-        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
-        Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
-        assertThat(setFields).containsEntry("arrivalDate", LocalDate.of(2026, 7, 21));
+        assertThat(upsertedSetFields()).containsEntry("arrivalDate", LocalDate.of(2026, 7, 21));
     }
 
     @Test
