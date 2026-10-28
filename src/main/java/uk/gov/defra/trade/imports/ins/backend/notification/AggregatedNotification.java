@@ -27,7 +27,6 @@ public class AggregatedNotification {
     private String referenceNumber;
     private String status;
     private String originCountry;
-    // MDM subdivision code (e.g. ES-CN, Canary Islands) when the origin is part of a country.
     private String originCountrySubdivisionCode;
     private String commodity;
     private LocalDate arrivalDate;
