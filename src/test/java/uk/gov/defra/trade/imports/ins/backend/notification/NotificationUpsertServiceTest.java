@@ -54,13 +54,11 @@ class NotificationUpsertServiceTest {
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
         verify(mongoTemplate).upsert(queryCaptor.capture(), any(Update.class), eq(AggregatedNotification.class));
 
-        // Query must filter on _id AND aggregateVersion < incomingVersion
         Document queryDoc = queryCaptor.getValue().getQueryObject();
         assertThat(queryDoc).containsEntry("_id", "agg-1");
         Document versionFilter = queryDoc.get("aggregateVersion", Document.class);
         assertThat(versionFilter).containsEntry("$lt", 3L);
 
-        // Update must include the snapshot fields — inspect BSON document directly to avoid codec issues
         Document updateDoc = upsertedUpdate();
         Document setOnInsert = updateDoc.get("$setOnInsert", Document.class);
         assertThat(setOnInsert).containsEntry("_id", "agg-1");
@@ -147,7 +145,6 @@ class NotificationUpsertServiceTest {
 
     @Test
     void upsert_shouldNeitherSetNorClearFields_whenTheEventHasNoData() throws Exception {
-        // Lifecycle event with no data node — version guard still runs, optional fields skipped
         JsonNode body = mapper.readTree("""
             {"aggregateId":"agg-1","aggregateVersion":2}
             """);
@@ -159,34 +156,12 @@ class NotificationUpsertServiceTest {
         assertThat(setFields).doesNotContainKey("referenceNumber")
             .doesNotContainKey("status")
             .doesNotContainKey("originCountrySubdivisionCode");
-        // No origin on the event, so a stored subdivision is left alone rather than cleared
         assertThat(updateDoc.get("$unset", Document.class)).isNull();
     }
 
     @Test
     void upsert_shouldStoreTheCountrySubdivisionCode_andNotTheRegionOfOriginCode() throws Exception {
-        JsonNode body = mapper.readTree("""
-            {
-              "aggregateId": "agg-1",
-              "aggregateVersion": 1,
-              "data": {
-                "specifiedConsignment": {
-                  "originCountry": {
-                    "code": { "value": "ES" },
-                    "subordinateTradeCountrySubDivision": [
-                      { "functionTypeCode": { "content": "44" } },
-                      {
-                        "identifier": "ES-CN",
-                        "urlId": "https://refdata.tbc.defra.gov.uk/country_subdivisions",
-                        "functionTypeCode": { "content": "106" }
-                      }
-                    ],
-                    "regionOfOriginCode": "ES-12345"
-                  }
-                }
-              }
-            }
-            """);
+        JsonNode body = mapper.readTree(eventFromTheCanaryIslandsWithAnotherSubDivisionListedFirst());
 
         service.upsert(body);
 
@@ -230,6 +205,31 @@ class NotificationUpsertServiceTest {
               }
             }
             """.formatted(scheduledOccurrenceDateTime);
+    }
+
+    private static String eventFromTheCanaryIslandsWithAnotherSubDivisionListedFirst() {
+        return """
+            {
+              "aggregateId": "agg-1",
+              "aggregateVersion": 1,
+              "data": {
+                "specifiedConsignment": {
+                  "originCountry": {
+                    "code": { "value": "ES" },
+                    "subordinateTradeCountrySubDivision": [
+                      { "functionTypeCode": { "content": "44" } },
+                      {
+                        "identifier": "ES-CN",
+                        "urlId": "https://refdata.tbc.defra.gov.uk/country_subdivisions",
+                        "functionTypeCode": { "content": "106" }
+                      }
+                    ],
+                    "regionOfOriginCode": "ES-12345"
+                  }
+                }
+              }
+            }
+            """;
     }
 
     private static String fullNotificationEdited(long version) {
