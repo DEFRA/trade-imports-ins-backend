@@ -46,7 +46,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_shouldUpsertWithVersionGuardedQuery_whenNotificationEdited() throws Exception {
+    void upsert_shouldUpsertTheSnapshot_onlyOverAnOlderStoredVersion() throws Exception {
         JsonNode body = mapper.readTree(fullNotificationEdited(3));
 
         service.upsert(body);
@@ -69,7 +69,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_shouldThrowNonRetryable_whenAggregateIdMissing() throws Exception {
+    void upsert_shouldRejectAsNonRetryable_whenAggregateIdIsMissing() throws Exception {
         JsonNode body = mapper.readTree("""
             {"aggregateVersion":1,"eventType":"uk.gov.defra.imports.notification.NotificationEdited"}
             """);
@@ -79,7 +79,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_shouldThrowNonRetryable_whenAggregateVersionMissing() throws Exception {
+    void upsert_shouldRejectAsNonRetryable_whenAggregateVersionIsMissing() throws Exception {
         JsonNode body = mapper.readTree("""
             {"aggregateId":"agg-1","eventType":"uk.gov.defra.imports.notification.NotificationEdited"}
             """);
@@ -89,7 +89,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_shouldThrowNonRetryable_whenIssueDateTimeIsMalformed() throws Exception {
+    void upsert_shouldRejectAsNonRetryable_whenIssueDateTimeIsNotADate() throws Exception {
         JsonNode body = mapper.readTree("""
             {
               "aggregateId": "agg-1",
@@ -121,7 +121,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_throwsNonRetryable_whenScheduledOccurrenceDateTimeIsMalformed() throws Exception {
+    void upsert_shouldRejectAsNonRetryable_whenScheduledOccurrenceDateTimeHasNoTime() throws Exception {
         JsonNode body = mapper.readTree(eventScheduledToArriveAt("2026-07-21"));
 
         assertThatThrownBy(() -> service.upsert(body))
@@ -131,7 +131,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_shouldApplyVersionFilterToMongo_whenEventVersionIsStale() throws Exception {
+    void upsert_shouldLeaveStaleEventsToTheVersionFilter_ratherThanSkippingThemItself() throws Exception {
         JsonNode body = mapper.readTree(fullNotificationEdited(1));
 
         service.upsert(body);
