@@ -14,7 +14,7 @@ import uk.gov.defra.trade.imports.ins.backend.configuration.LocalDateStringConve
 class LocalDateStringConvertersTest {
 
     private static final LocalDate DATE = LocalDate.of(2026, 7, 21);
-    private static final String STORED = "2026-07-21";
+    private static final String ISO_DATE = "2026-07-21";
 
     private TimeZone originalZone;
 
@@ -30,17 +30,17 @@ class LocalDateStringConvertersTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"UTC", "Europe/London", "America/New_York", "Australia/Sydney"})
-    void write_shouldStoreTheIsoDateString_whateverTheJvmDefaultZone(String zoneId) {
+    void convertToString_shouldReturnTheIsoDateString_whateverTheJvmDefaultZone(String zoneId) {
         TimeZone.setDefault(TimeZone.getTimeZone(zoneId));
 
-        assertThat(new LocalDateToStringConverter().convert(DATE)).isEqualTo(STORED);
+        assertThat(new LocalDateToStringConverter().convert(DATE)).isEqualTo(ISO_DATE);
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"UTC", "Europe/London", "America/New_York", "Australia/Sydney"})
-    void read_shouldReturnTheSameCalendarDate_whateverTheJvmDefaultZone(String zoneId) {
+    void convertToLocalDate_shouldParseTheIsoDateStringToTheSameCalendarDate_whateverTheJvmDefaultZone(String zoneId) {
         TimeZone.setDefault(TimeZone.getTimeZone(zoneId));
 
-        assertThat(new StringToLocalDateConverter().convert(STORED)).isEqualTo(DATE);
+        assertThat(new StringToLocalDateConverter().convert(ISO_DATE)).isEqualTo(DATE);
     }
 }
