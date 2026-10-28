@@ -19,7 +19,6 @@ import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotificatio
 class NotificationSqsListenerIT extends IntegrationBase {
 
     private static final String AGGREGATE_ID = "Imports.Notification.GBN-AG.GBN-AG-26-001";
-    private static final String NOTIFICATIONS_COLLECTION = "notifications";
 
     @Autowired
     private AggregatedNotificationRepository repository;
@@ -58,7 +57,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
 
         // When / Then
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
-            Document stored = mongoTemplate.getCollection(NOTIFICATIONS_COLLECTION)
+            Document stored = mongoTemplate.getCollection(mongoTemplate.getCollectionName(AggregatedNotification.class))
                 .find(new Document("_id", AGGREGATE_ID))
                 .first();
             assertThat(stored).isNotNull();
