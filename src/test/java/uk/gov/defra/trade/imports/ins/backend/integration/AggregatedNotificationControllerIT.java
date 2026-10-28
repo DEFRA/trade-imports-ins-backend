@@ -32,12 +32,10 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
 
     @Test
     void findAll_defaultSort_excludesDeleted_ordersByArrivalDateDesc() throws Exception {
-        // Given
         seed("agg-earlier", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-08-01");
         seed("agg-later", "GBN-AG-26-002", "DRAFT", "FR", "Live cattle", "2026-08-20");
         seed("agg-deleted", "GBN-AG-26-003", "DELETED", "GB", "Domestic", "2026-08-25");
 
-        // When / Then
         mockMvc.perform(get("/notifications"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content", hasSize(2)))
@@ -63,12 +61,10 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
     })
     void findAll_sortedByArrivalDate_ordersAcrossMonthAndYearBoundaries(
         String sort, String first, String second, String third) throws Exception {
-        // Given
         seed("agg-january", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-01-02");
         seed("agg-december", "GBN-AG-25-012", "SUBMITTED", "GB", "Domestic", "2025-12-31");
         seed("agg-september", "GBN-AG-26-009", "DRAFT", "FR", "Live cattle", "2026-09-30");
 
-        // When / Then
         mockMvc.perform(get("/notifications").param("sort", sort))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content[*].referenceNumber").value(contains(first, second, third)));
@@ -76,11 +72,9 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
 
     @Test
     void findAll_referenceNumber_exactMatch_returnsOnlyThatNotification() throws Exception {
-        // Given
         seed("agg-1", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-08-01");
         seed("agg-2", "GBN-AG-26-002", "DRAFT", "FR", "Live cattle", "2026-08-20");
 
-        // When / Then
         mockMvc.perform(get("/notifications").param("referenceNumber", "GBN-AG-26-002"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content", hasSize(1)))
@@ -94,10 +88,8 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
 
     @Test
     void findAll_referenceNumber_noMatch_returnsEmptyContent_not404() throws Exception {
-        // Given
         seed("agg-1", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-08-01");
 
-        // When / Then
         mockMvc.perform(get("/notifications").param("referenceNumber", "GBN-AG-26-999"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content", hasSize(0)))
@@ -106,10 +98,8 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
 
     @Test
     void findAll_referenceNumber_matchingDeletedNotification_isExcluded() throws Exception {
-        // Given
         seed("agg-deleted", "GBN-AG-26-003", "DELETED", "GB", "Domestic", "2026-08-25");
 
-        // When / Then
         mockMvc.perform(get("/notifications").param("referenceNumber", "GBN-AG-26-003"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content", hasSize(0)));
@@ -131,11 +121,9 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
 
     @Test
     void findAll_returnsTheOriginCountrySubdivisionCode() throws Exception {
-        // Given
         seed("agg-canary", "GBN-AG-26-004", "SUBMITTED", "ES", "Domestic", "2026-08-01",
             notification -> notification.originCountrySubdivisionCode("ES-CN"));
 
-        // When / Then
         mockMvc.perform(get("/notifications"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content[0].originCountry").value("ES"))
