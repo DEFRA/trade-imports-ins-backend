@@ -92,7 +92,6 @@ class NotificationUpsertServiceTest {
 
     @Test
     void upsert_throwsNonRetryable_whenIssueDateTimeIsMalformed() throws Exception {
-        // Given
         JsonNode body = mapper.readTree("""
             {
               "aggregateId": "agg-1",
@@ -105,7 +104,6 @@ class NotificationUpsertServiceTest {
             }
             """);
 
-        // When / Then
         assertThatThrownBy(() -> service.upsert(body))
             .isInstanceOf(SqsNonRetryableException.class)
             .hasMessageContaining("issueDateTime")
@@ -116,24 +114,19 @@ class NotificationUpsertServiceTest {
     @ValueSource(strings = {"America/New_York", "Pacific/Auckland"})
     void upsert_shouldSetTheUtcCalendarDayOfTheScheduledArrival_whateverTheJvmDefaultZone(
         String zoneId) throws Exception {
-        // Given
         TimeZone.setDefault(TimeZone.getTimeZone(zoneId));
         JsonNode body = mapper.readTree(eventScheduledToArriveAt("2026-07-21T00:00:00Z"));
 
-        // When
         service.upsert(body);
 
-        // Then
         Document setFields = upsertedUpdate().get("$set", Document.class);
         assertThat(setFields).containsEntry("arrivalDate", LocalDate.of(2026, 7, 21));
     }
 
     @Test
     void upsert_throwsNonRetryable_whenScheduledOccurrenceDateTimeIsMalformed() throws Exception {
-        // Given
         JsonNode body = mapper.readTree(eventScheduledToArriveAt("2026-07-21"));
 
-        // When / Then
         assertThatThrownBy(() -> service.upsert(body))
             .isInstanceOf(SqsNonRetryableException.class)
             .hasMessageContaining("scheduledOccurrenceDateTime")
@@ -142,14 +135,10 @@ class NotificationUpsertServiceTest {
 
     @Test
     void upsert_delegatesVersionFilterToMongo_forStaleEvent() throws Exception {
-        // Given — version 1 would be stale if the store already holds version 3, but the service
-        // does not check staleness itself; it always issues the upsert and lets MongoDB match nothing.
         JsonNode body = mapper.readTree(fullNotificationEdited(1));
 
-        // When
         service.upsert(body);
 
-        // Then — the query encodes $lt: 1 so MongoDB will match no document and apply no write
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
         verify(mongoTemplate).upsert(queryCaptor.capture(), any(Update.class), eq(AggregatedNotification.class));
         Document versionFilter = queryCaptor.getValue().getQueryObject().get("aggregateVersion", Document.class);
@@ -176,8 +165,6 @@ class NotificationUpsertServiceTest {
 
     @Test
     void upsert_shouldStoreTheCountrySubdivisionCode_andNotTheRegionOfOriginCode() throws Exception {
-        // Given — a Canary Islands origin; the authority sub-division comes first, so the code is
-        // picked by function ('106'), not by position
         JsonNode body = mapper.readTree("""
             {
               "aggregateId": "agg-1",
@@ -201,10 +188,8 @@ class NotificationUpsertServiceTest {
             }
             """);
 
-        // When
         service.upsert(body);
 
-        // Then
         Document setFields = upsertedUpdate().get("$set", Document.class);
         assertThat(setFields).containsEntry("originCountry", "ES")
             .containsEntry("originCountrySubdivisionCode", "ES-CN")
@@ -213,13 +198,10 @@ class NotificationUpsertServiceTest {
 
     @Test
     void upsert_shouldClearSubdivisionCode_whenOriginIsAWholeCountry() throws Exception {
-        // Given — a whole-country origin, as after an amendment away from a subdivision
         JsonNode body = mapper.readTree(fullNotificationEdited(1));
 
-        // When
         service.upsert(body);
 
-        // Then
         Document updateDoc = upsertedUpdate();
         Document setFields = updateDoc.get("$set", Document.class);
         Document unsetFields = updateDoc.get("$unset", Document.class);
