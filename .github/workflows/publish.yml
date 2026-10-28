@@ -6,9 +6,8 @@ on:
       - main
 
 concurrency:
-  group: $${{ github.workflow }}
+  group: ${{ github.workflow }}
   cancel-in-progress: false
-  queue: max
 
 permissions:
   id-token: write
