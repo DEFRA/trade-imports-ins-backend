@@ -52,8 +52,7 @@ class NotificationUpsertServiceTest {
         service.upsert(body);
 
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
-        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        verify(mongoTemplate).upsert(queryCaptor.capture(), updateCaptor.capture(), eq(AggregatedNotification.class));
+        verify(mongoTemplate).upsert(queryCaptor.capture(), any(Update.class), eq(AggregatedNotification.class));
 
         // Query must filter on _id AND aggregateVersion < incomingVersion
         Document queryDoc = queryCaptor.getValue().getQueryObject();
@@ -62,7 +61,7 @@ class NotificationUpsertServiceTest {
         assertThat(versionFilter).containsEntry("$lt", 3L);
 
         // Update must include the snapshot fields — inspect BSON document directly to avoid codec issues
-        Document updateDoc = updateCaptor.getValue().getUpdateObject();
+        Document updateDoc = upsertedUpdate();
         Document setOnInsert = updateDoc.get("$setOnInsert", Document.class);
         assertThat(setOnInsert).containsEntry("_id", "agg-1");
         Document setFields = updateDoc.get("$set", Document.class);
@@ -125,9 +124,7 @@ class NotificationUpsertServiceTest {
         service.upsert(body);
 
         // Then
-        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
-        Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        Document setFields = upsertedUpdate().get("$set", Document.class);
         assertThat(setFields).containsEntry("arrivalDate", LocalDate.of(2026, 7, 21));
     }
 
@@ -168,15 +165,13 @@ class NotificationUpsertServiceTest {
 
         service.upsert(body);
 
-        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
-
-        Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        Document updateDoc = upsertedUpdate();
+        Document setFields = updateDoc.get("$set", Document.class);
         assertThat(setFields).doesNotContainKey("referenceNumber")
             .doesNotContainKey("status")
             .doesNotContainKey("originCountrySubdivisionCode");
         // No origin on the event, so a stored subdivision is left alone rather than cleared
-        assertThat(updateCaptor.getValue().getUpdateObject().get("$unset", Document.class)).isNull();
+        assertThat(updateDoc.get("$unset", Document.class)).isNull();
     }
 
     @Test
@@ -210,9 +205,7 @@ class NotificationUpsertServiceTest {
         service.upsert(body);
 
         // Then
-        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
-        Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        Document setFields = upsertedUpdate().get("$set", Document.class);
         assertThat(setFields).containsEntry("originCountry", "ES")
             .containsEntry("originCountrySubdivisionCode", "ES-CN")
             .doesNotContainValue("ES-12345");
@@ -227,13 +220,18 @@ class NotificationUpsertServiceTest {
         service.upsert(body);
 
         // Then
-        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
-        Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
-        Document unsetFields = updateCaptor.getValue().getUpdateObject().get("$unset", Document.class);
+        Document updateDoc = upsertedUpdate();
+        Document setFields = updateDoc.get("$set", Document.class);
+        Document unsetFields = updateDoc.get("$unset", Document.class);
         assertThat(setFields).containsEntry("originCountry", "GB")
             .doesNotContainKey("originCountrySubdivisionCode");
         assertThat(unsetFields).containsKey("originCountrySubdivisionCode");
+    }
+
+    private Document upsertedUpdate() {
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
+        return updateCaptor.getValue().getUpdateObject();
     }
 
     private static String eventScheduledToArriveAt(String scheduledOccurrenceDateTime) {
