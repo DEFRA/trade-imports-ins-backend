@@ -112,23 +112,18 @@ class NotificationUpsertServiceTest {
     @ValueSource(strings = {"America/New_York", "Pacific/Auckland"})
     void upsert_shouldSetTheUtcCalendarDayOfTheScheduledArrival_whateverTheJvmDefaultZone(
         String zoneId) throws Exception {
-        // Given
         TimeZone.setDefault(TimeZone.getTimeZone(zoneId));
         JsonNode body = mapper.readTree(eventScheduledToArriveAt("2026-07-21T00:00:00Z"));
 
-        // When
         service.upsert(body);
 
-        // Then
         assertThat(upsertedSetFields()).containsEntry("arrivalDate", LocalDate.of(2026, 7, 21));
     }
 
     @Test
     void upsert_throwsNonRetryable_whenScheduledOccurrenceDateTimeIsMalformed() throws Exception {
-        // Given
         JsonNode body = mapper.readTree(eventScheduledToArriveAt("2026-07-21"));
 
-        // When / Then
         assertThatThrownBy(() -> service.upsert(body))
             .isInstanceOf(SqsNonRetryableException.class)
             .hasMessageContaining("scheduledOccurrenceDateTime")
