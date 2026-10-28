@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -15,6 +16,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotification;
+import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotification.AggregatedNotificationBuilder;
 
 class AggregatedNotificationControllerIT extends IntegrationBase {
 
@@ -132,15 +134,8 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
     @Test
     void findAll_returnsTheOriginCountrySubdivisionCode() throws Exception {
         // Given
-        mongoTemplate.save(AggregatedNotification.builder()
-            .aggregateId("agg-canary")
-            .aggregateVersion(1L)
-            .referenceNumber("GBN-AG-26-004")
-            .status("SUBMITTED")
-            .originCountry("ES")
-            .originCountrySubdivisionCode("ES-CN")
-            .lastUpdated(Instant.now())
-            .build());
+        seed("agg-canary", "GBN-AG-26-004", "SUBMITTED", "ES", "Domestic", "2026-08-01",
+            notification -> notification.originCountrySubdivisionCode("ES-CN"));
 
         // When / Then
         mockMvc.perform(get("/notifications"))
@@ -151,7 +146,12 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
 
     private void seed(String aggregateId, String referenceNumber, String status, String originCountry,
             String commodity, String arrivalDate) {
-        mongoTemplate.save(AggregatedNotification.builder()
+        seed(aggregateId, referenceNumber, status, originCountry, commodity, arrivalDate, UnaryOperator.identity());
+    }
+
+    private void seed(String aggregateId, String referenceNumber, String status, String originCountry,
+            String commodity, String arrivalDate, UnaryOperator<AggregatedNotificationBuilder> customise) {
+        AggregatedNotificationBuilder notification = AggregatedNotification.builder()
             .aggregateId(aggregateId)
             .aggregateVersion(1L)
             .referenceNumber(referenceNumber)
@@ -159,7 +159,7 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
             .originCountry(originCountry)
             .commodity(commodity)
             .arrivalDate(LocalDate.parse(arrivalDate))
-            .lastUpdated(LAST_UPDATED)
-            .build());
+            .lastUpdated(LAST_UPDATED);
+        mongoTemplate.save(customise.apply(notification).build());
     }
 }
