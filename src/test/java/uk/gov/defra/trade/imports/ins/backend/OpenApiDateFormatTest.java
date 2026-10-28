@@ -14,10 +14,6 @@ import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotificatio
 
 class OpenApiDateFormatTest {
 
-    private static final List<Class<?>> API_TYPES = List.of(
-        AggregatedNotification.class,
-        AggregatedNotificationPageResponse.class);
-
     @ParameterizedTest
     @CsvSource({
         "arrivalDate, date",
@@ -25,8 +21,11 @@ class OpenApiDateFormatTest {
     })
     void schema_shouldDescribeEachDateFieldWithTheFormatOfItsType(
         String property, String expectedFormat) {
+        List<Class<?>> apiTypes = List.of(
+            AggregatedNotification.class,
+            AggregatedNotificationPageResponse.class);
         List<String> formats = new ArrayList<>();
-        for (Class<?> type : API_TYPES) {
+        for (Class<?> type : apiTypes) {
             for (Schema<?> schema : ModelConverters.getInstance().readAll(type).values()) {
                 Map<String, Schema> properties = schema.getProperties();
                 if (properties != null && properties.containsKey(property)) {
