@@ -46,7 +46,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_callsMongoTemplate_withVersionGuardedQuery() throws Exception {
+    void upsert_shouldUpsertTheSnapshot_onlyOverAnOlderStoredVersion() throws Exception {
         JsonNode body = mapper.readTree(fullNotificationEdited(3));
 
         service.upsert(body);
@@ -71,7 +71,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_throwsNonRetryable_whenAggregateIdMissing() throws Exception {
+    void upsert_shouldRejectAsNonRetryable_whenAggregateIdIsMissing() throws Exception {
         JsonNode body = mapper.readTree("""
             {"aggregateVersion":1,"eventType":"uk.gov.defra.imports.notification.NotificationEdited"}
             """);
@@ -81,7 +81,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_throwsNonRetryable_whenAggregateVersionMissing() throws Exception {
+    void upsert_shouldRejectAsNonRetryable_whenAggregateVersionIsMissing() throws Exception {
         JsonNode body = mapper.readTree("""
             {"aggregateId":"agg-1","eventType":"uk.gov.defra.imports.notification.NotificationEdited"}
             """);
@@ -91,7 +91,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_throwsNonRetryable_whenIssueDateTimeIsMalformed() throws Exception {
+    void upsert_shouldRejectAsNonRetryable_whenIssueDateTimeIsNotADate() throws Exception {
         JsonNode body = mapper.readTree("""
             {
               "aggregateId": "agg-1",
@@ -124,7 +124,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_throwsNonRetryable_whenScheduledOccurrenceDateTimeIsMalformed() throws Exception {
+    void upsert_shouldRejectAsNonRetryable_whenScheduledOccurrenceDateTimeHasNoTime() throws Exception {
         JsonNode body = mapper.readTree(eventScheduledToArriveAt("2026-07-21"));
 
         assertThatThrownBy(() -> service.upsert(body))
@@ -134,7 +134,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_delegatesVersionFilterToMongo_forStaleEvent() throws Exception {
+    void upsert_shouldLeaveStaleEventsToTheVersionFilter_ratherThanSkippingThemItself() throws Exception {
         JsonNode body = mapper.readTree(fullNotificationEdited(1));
 
         service.upsert(body);
@@ -146,7 +146,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_doesNotSetMissingFields() throws Exception {
+    void upsert_shouldNeitherSetNorClearFields_whenTheEventHasNoData() throws Exception {
         // Lifecycle event with no data node — version guard still runs, optional fields skipped
         JsonNode body = mapper.readTree("""
             {"aggregateId":"agg-1","aggregateVersion":2}
