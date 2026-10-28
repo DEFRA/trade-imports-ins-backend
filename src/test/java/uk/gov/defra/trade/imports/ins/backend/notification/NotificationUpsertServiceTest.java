@@ -5,16 +5,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static uk.gov.defra.trade.imports.ins.backend.testsupport.JvmDefaultZoneExtension.EAST_OF_UTC;
+import static uk.gov.defra.trade.imports.ins.backend.testsupport.JvmDefaultZoneExtension.WEST_OF_UTC;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDate;
-import java.util.TimeZone;
 import org.bson.Document;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
@@ -23,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import uk.gov.defra.trade.imports.ins.backend.testsupport.JvmDefaultZoneExtension;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationUpsertServiceTest {
@@ -32,17 +34,13 @@ class NotificationUpsertServiceTest {
 
     private NotificationUpsertService service;
     private final ObjectMapper mapper = new ObjectMapper();
-    private TimeZone originalZone;
+
+    @RegisterExtension
+    final JvmDefaultZoneExtension jvmDefaultZone = new JvmDefaultZoneExtension();
 
     @BeforeEach
     void setup() {
         service = new NotificationUpsertService(mongoTemplate);
-        originalZone = TimeZone.getDefault();
-    }
-
-    @AfterEach
-    void restoreZone() {
-        TimeZone.setDefault(originalZone);
     }
 
     @Test
@@ -109,10 +107,10 @@ class NotificationUpsertServiceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"America/New_York", "Pacific/Auckland"})
+    @ValueSource(strings = {WEST_OF_UTC, EAST_OF_UTC})
     void upsert_shouldSetTheUtcCalendarDayOfTheScheduledArrival_whateverTheJvmDefaultZone(
         String zoneId) throws Exception {
-        TimeZone.setDefault(TimeZone.getTimeZone(zoneId));
+        jvmDefaultZone.setJvmDefaultZone(zoneId);
         JsonNode body = mapper.readTree(eventScheduledToArriveAt("2026-07-21T00:00:00Z"));
 
         service.upsert(body);
