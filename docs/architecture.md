@@ -50,7 +50,7 @@ A call can be one search or the other. A request with both answers 400 rather th
 
 ## Notification dates
 
-- `arrivalDate` is a calendar date: a `LocalDate` on the document and in the API, `YYYY-MM-DD` on the wire, and a string in Mongo. `LocalDateStringConverters` stores it as that string. Without them Spring Data writes a BSON date at midnight in the JVM's zone, and the stored day then depends on where the service runs. `YYYY-MM-DD` strings sort in date order, so the `arrivalDate` sort and the `status_sort_fields` index work on the string.
+- `arrivalDate` is a calendar date: a `LocalDate` on the document and in the API, `YYYY-MM-DD` on the wire, and a string in Mongo. The pair of converters in `LocalDateStringConverters`, registered in `MongoConfig`, stores it as that string. Without them Spring Data writes a BSON date at midnight in the JVM's zone, and the stored day then depends on where the service runs. `YYYY-MM-DD` strings sort in date order, so the `arrivalDate` sort and the `status_sort_fields` index work on the string.
 - The GBN-AG event carries the arrival as an instant, `scheduledOccurrenceDateTime`, because PIMS needs one. The animals backend writes it at the start of the chosen day in UTC, so `NotificationUpsertService` takes the day back in UTC, whatever the JVM's zone.
 - `lastUpdated` is a moment: an `Instant`, RFC 3339 with a `Z` on the wire, and a BSON date in Mongo.
 
