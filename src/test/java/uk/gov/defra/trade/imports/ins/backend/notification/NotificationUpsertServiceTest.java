@@ -155,7 +155,7 @@ class NotificationUpsertServiceTest {
 
     @Test
     void upsert_shouldStoreOriginCountrySubdivisionCode_whenFunctionIs106() throws Exception {
-        JsonNode body = mapper.readTree(canaryIslandsOriginEvent());
+        JsonNode body = mapper.readTree(eventFromTheCanaryIslandsWithAnotherSubDivisionListedFirst());
 
         service.upsert(body);
 
@@ -245,7 +245,7 @@ class NotificationUpsertServiceTest {
             """;
     }
 
-    private static String canaryIslandsOriginEvent() {
+    private static String eventFromTheCanaryIslandsWithAnotherSubDivisionListedFirst() {
         return """
             {
               "aggregateId": "agg-1",
