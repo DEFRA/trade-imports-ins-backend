@@ -117,7 +117,6 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
 
     @Test
     void findAll_emptyStore_returnsEmptyContent() throws Exception {
-        // Given / When / Then — nothing seeded
         mockMvc.perform(get("/notifications"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content", hasSize(0)))
@@ -126,7 +125,6 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
 
     @Test
     void findAll_pageIsZero_returnsBadRequest() throws Exception {
-        // When / Then — @Min(1) on page is violated; must map to 400, not a 500
         mockMvc.perform(get("/notifications").param("page", "0"))
             .andExpect(status().isBadRequest());
     }
