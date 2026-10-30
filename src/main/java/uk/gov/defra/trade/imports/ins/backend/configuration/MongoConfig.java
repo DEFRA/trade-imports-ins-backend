@@ -11,21 +11,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.mongodb.core.convert.MongoCustomConversions;
 import javax.net.ssl.SSLContext;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import uk.gov.defra.trade.imports.ins.backend.configuration.tls.TrustStoreConfiguration;
 
-/**
- * MongoDB configuration for Trade Imports Ins Backend.
- *
- * <p>Configures MongoDB connection with: - AWS IAM authentication (via connection string
- * authMechanism=MONGODB-AWS) - Custom SSL/TLS certificates from TRUSTSTORE_* environment variables
- * - Read preference: secondary (configurable) - Write concern: majority (configurable) - Connection
- * pooling - Graceful shutdown
- *
- * <p>Connection string format for AWS IAM auth:
- * mongodb://host:port/database?authMechanism=MONGODB-AWS&authSource=$external
- */
 @Configuration
 @Slf4j
 public class MongoConfig {
@@ -69,6 +60,13 @@ public class MongoConfig {
       log.info("MongoDB client configuration complete");
       
     return builder.build();
+  }
+
+  @Bean
+  MongoCustomConversions mongoCustomConversions() {
+    return new MongoCustomConversions(List.of(
+        new LocalDateStringConverters.LocalDateToStringConverter(),
+        new LocalDateStringConverters.StringToLocalDateConverter()));
   }
 
   @Bean
