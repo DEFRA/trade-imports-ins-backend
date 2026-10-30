@@ -48,7 +48,7 @@ public class NotificationUpsertService {
         String originCountrySubdivisionCode = countrySubdivisionCode(
             originCountryNode.path("subordinateTradeCountrySubDivision"));
 
-        String arrivalDateStr = textOrNull(
+        String scheduledOccurrenceDateTime = textOrNull(
             specifiedConsignment
                 .path("mainCarriageLogisticsTransportMovement").path(0)
                 .path("arrivalEvent").path(0)
@@ -72,8 +72,8 @@ public class NotificationUpsertService {
             ? parseInstant(lastUpdatedStr, "issueDateTime", aggregateId)
             : Instant.now();
 
-        LocalDate arrivalDate = arrivalDateStr != null
-            ? parseInstant(arrivalDateStr, "scheduledOccurrenceDateTime", aggregateId)
+        LocalDate arrivalDate = scheduledOccurrenceDateTime != null
+            ? parseInstant(scheduledOccurrenceDateTime, "scheduledOccurrenceDateTime", aggregateId)
                 .atZone(ZoneOffset.UTC).toLocalDate()
             : null;
 
