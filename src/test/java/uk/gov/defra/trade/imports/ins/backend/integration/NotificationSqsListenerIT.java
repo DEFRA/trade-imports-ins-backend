@@ -202,7 +202,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
     }
 
     @Test
-    void unknownEventType_isDeadLettered_notRemainingInQueue() {
+    void unknownEventType_isDeletedWithoutBeingStored() {
         // Given
         String body = """
             {"aggregateId":"%s","aggregateVersion":1,"eventType":"uk.gov.defra.imports.notification.UnknownEvent"}
@@ -211,17 +211,17 @@ class NotificationSqsListenerIT extends IntegrationBase {
         // When
         sendToSqs(body, AGGREGATE_ID);
 
-        // Then — non-retryable: message must be deleted from the queue (not redelivered)
+        // Then
         awaitQueueEmpty();
         assertThat(repository.findById(AGGREGATE_ID)).isEmpty();
     }
 
     @Test
-    void invalidJson_isDeadLettered() {
+    void invalidJson_isDeletedWithoutBeingStored() {
         // Given / When
         sendToSqs("not valid json {{{", AGGREGATE_ID);
 
-        // Then — non-retryable: message must be deleted from the queue (not redelivered)
+        // Then
         awaitQueueEmpty();
         assertThat(repository.count()).isZero();
     }
