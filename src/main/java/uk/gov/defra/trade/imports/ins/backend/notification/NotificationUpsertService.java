@@ -38,17 +38,17 @@ public class NotificationUpsertService {
         JsonNode exchangedDocument = data.path("exchangedDocument");
         JsonNode specifiedConsignment = data.path("specifiedConsignment");
 
-        String referenceNumber = textOrNull(exchangedDocument.path("identifier"));
-        String status = textOrNull(exchangedDocument.path("notificationStatusCode"));
-        String lastUpdatedStr = textOrNull(exchangedDocument.path("issueDateTime"));
+        String referenceNumber = text(exchangedDocument.path("identifier"));
+        String status = text(exchangedDocument.path("notificationStatusCode"));
+        String lastUpdatedStr = text(exchangedDocument.path("issueDateTime"));
 
         JsonNode originCountryNode = specifiedConsignment.path(ORIGIN_COUNTRY);
-        String originCountry = textOrNull(originCountryNode.path("code").path("value"));
+        String originCountry = text(originCountryNode.path("code").path("value"));
 
         String originCountrySubdivisionCode = countrySubdivisionCode(
             originCountryNode.path("subordinateTradeCountrySubDivision"));
 
-        String scheduledOccurrenceDateTime = textOrNull(
+        String scheduledOccurrenceDateTime = text(
             specifiedConsignment
                 .path("mainCarriageLogisticsTransportMovement").path(0)
                 .path("arrivalEvent").path(0)
@@ -57,9 +57,9 @@ public class NotificationUpsertService {
         JsonNode firstTradeLine = specifiedConsignment
             .path("includedConsignmentItem").path(0)
             .path("includedTradeLineItem").path(0);
-        String commodity = textOrNull(firstTradeLine.path("description").path(0));
+        String commodity = text(firstTradeLine.path("description").path(0));
         if (commodity == null) {
-            commodity = textOrNull(firstTradeLine.path("commonName"));
+            commodity = text(firstTradeLine.path("commonName"));
             if (commodity != null) {
                 log.info(
                     "No trade-line description, dashboard commodity taken from commonName: aggregateId={}, aggregateVersion={}",
@@ -105,7 +105,7 @@ public class NotificationUpsertService {
     private static String countrySubdivisionCode(JsonNode subDivisions) {
         for (JsonNode subDivision : subDivisions) {
             if (SUBDIVISION_OF_ORIGIN.equals(subDivision.path("functionTypeCode").path("content").asText(null))) {
-                return textOrNull(subDivision.path("identifier"));
+                return text(subDivision.path("identifier"));
             }
         }
         return null;
@@ -120,7 +120,7 @@ public class NotificationUpsertService {
         }
     }
 
-    private static String textOrNull(JsonNode node) {
+    private static String text(JsonNode node) {
         return node != null && node.isTextual() && !node.asText().isBlank() ? node.asText() : null;
     }
 }
