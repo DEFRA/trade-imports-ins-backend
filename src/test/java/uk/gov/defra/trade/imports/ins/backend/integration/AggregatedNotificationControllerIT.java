@@ -122,7 +122,7 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
     @Test
     void findAll_returnsTheOriginCountrySubdivisionCode() throws Exception {
         seed("agg-canary", "GBN-AG-26-004", "SUBMITTED", "ES", "Domestic", "2026-08-01",
-            notification -> notification.originCountrySubdivisionCode("ES-CN"));
+            notificationBuilder -> notificationBuilder.originCountrySubdivisionCode("ES-CN"));
 
         mockMvc.perform(get("/notifications"))
             .andExpect(status().isOk())
@@ -137,7 +137,7 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
 
     private void seed(String aggregateId, String referenceNumber, String status, String originCountry,
             String commodity, String arrivalDate, UnaryOperator<AggregatedNotificationBuilder> customise) {
-        AggregatedNotificationBuilder notification = AggregatedNotification.builder()
+        AggregatedNotificationBuilder notificationBuilder = AggregatedNotification.builder()
             .aggregateId(aggregateId)
             .aggregateVersion(1L)
             .referenceNumber(referenceNumber)
@@ -146,6 +146,6 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
             .commodity(commodity)
             .arrivalDate(LocalDate.parse(arrivalDate))
             .lastUpdated(LAST_UPDATED);
-        mongoTemplate.save(customise.apply(notification).build());
+        mongoTemplate.save(customise.apply(notificationBuilder).build());
     }
 }
