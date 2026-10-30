@@ -142,7 +142,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_shouldNeitherSetNorClearFields_whenTheEventHasNoData() throws Exception {
+    void upsert_shouldLeaveReferenceStatusAndSubdivisionUnset_andClearNothing_whenTheEventHasNoData() throws Exception {
         JsonNode body = mapper.readTree("""
             {"aggregateId":"agg-1","aggregateVersion":2}
             """);
