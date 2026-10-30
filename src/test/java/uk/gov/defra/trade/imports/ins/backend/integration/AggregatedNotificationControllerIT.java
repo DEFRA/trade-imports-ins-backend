@@ -34,11 +34,12 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
     void findAll_defaultSort_excludesDeleted_ordersByArrivalDateDesc() throws Exception {
         seed("agg-earlier", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-08-01");
         seed("agg-later", "GBN-AG-26-002", "DRAFT", "FR", "Live cattle", "2026-08-20");
+        seed("agg-oldest", "GBN-AG-26-004", "DRAFT", "FR", "Poultry", "2026-07-15");
         seed("agg-deleted", "GBN-AG-26-003", "DELETED", "GB", "Domestic", "2026-08-25");
 
         mockMvc.perform(get("/notifications"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.content", hasSize(2)))
+            .andExpect(jsonPath("$.content", hasSize(3)))
             .andExpect(jsonPath("$.content[0].referenceNumber").value("GBN-AG-26-002"))
             .andExpect(jsonPath("$.content[0].status").value("DRAFT"))
             .andExpect(jsonPath("$.content[0].originCountry").value("FR"))
@@ -50,20 +51,21 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
             .andExpect(jsonPath("$.content[1].commodity").value("Domestic"))
             .andExpect(jsonPath("$.content[1].arrivalDate").value("2026-08-01"))
             .andExpect(jsonPath("$.content[1].lastUpdated").value("2026-08-19T10:00:00Z"))
-            .andExpect(jsonPath("$.totalElements").value(2))
+            .andExpect(jsonPath("$.content[2].referenceNumber").value("GBN-AG-26-004"))
+            .andExpect(jsonPath("$.totalElements").value(3))
             .andExpect(jsonPath("$.page").value(1));
     }
 
     @ParameterizedTest
     @CsvSource({
-        "'arrivalDate,asc', GBN-AG-25-012, GBN-AG-26-001, GBN-AG-26-009",
-        "'arrivalDate,desc', GBN-AG-26-009, GBN-AG-26-001, GBN-AG-25-012"
+        "'arrivalDate,asc', GBN-AG-25-012, GBN-AG-26-001, GBN-AG-25-001",
+        "'arrivalDate,desc', GBN-AG-25-001, GBN-AG-26-001, GBN-AG-25-012"
     })
     void findAll_sortedByArrivalDate_ordersAcrossMonthAndYearBoundaries(
         String sort, String first, String second, String third) throws Exception {
-        seed("agg-january", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-01-02");
+        seed("agg-january", "GBN-AG-26-001", "DRAFT", "FR", "Live cattle", "2026-01-02");
         seed("agg-december", "GBN-AG-25-012", "SUBMITTED", "GB", "Domestic", "2025-12-31");
-        seed("agg-september", "GBN-AG-26-009", "DRAFT", "FR", "Live cattle", "2026-09-30");
+        seed("agg-autumn", "GBN-AG-25-001", "SUBMITTED", "GB", "Domestic", "2026-09-30");
 
         mockMvc.perform(get("/notifications").param("sort", sort))
             .andExpect(status().isOk())
