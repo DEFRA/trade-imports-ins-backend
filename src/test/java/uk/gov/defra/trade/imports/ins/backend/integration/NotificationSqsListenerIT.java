@@ -57,9 +57,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
 
         // When / Then
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
-            Document stored = mongoTemplate.getCollection(mongoTemplate.getCollectionName(AggregatedNotification.class))
-                .find(new Document("_id", AGGREGATE_ID))
-                .first();
+            Document stored = storedDocument();
             assertThat(stored).isNotNull();
             assertThat(stored.get("arrivalDate")).isEqualTo("2026-08-20");
             assertThat(stored.get("lastUpdated", Date.class).toInstant())
@@ -143,20 +141,29 @@ class NotificationSqsListenerIT extends IntegrationBase {
     }
 
     @Test
-    void deliveringSameEventTwice_isIdempotent() {
+    void deliveringSameEventTwice_leavesTheStoredDocumentUnchanged() {
         // Given
-        String body = notificationEdited(1);
-        sendToSqs(body, AGGREGATE_ID);
-
+        String eventWithNoIssueDateTime = """
+            {
+              "aggregateId": "%s",
+              "aggregateVersion": 1,
+              "eventType": "uk.gov.defra.imports.notification.NotificationEdited",
+              "data": {
+                "exchangedDocument": { "identifier": "GBN-AG-26-001", "notificationStatusCode": "DRAFT" }
+              }
+            }
+            """.formatted(AGGREGATE_ID);
+        sendToSqs(eventWithNoIssueDateTime, AGGREGATE_ID);
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
-            assertThat(repository.findById(AGGREGATE_ID)).isPresent());
+            assertThat(storedDocument()).isNotNull());
+        Document storedAfterFirstDelivery = storedDocument();
 
         // When
-        sendToSqs(body, AGGREGATE_ID);
+        sendToSqs(eventWithNoIssueDateTime, AGGREGATE_ID);
+        awaitQueueEmpty();
 
-        // Then — version guard means second delivery is a no-op
-        await().during(Duration.ofSeconds(5)).atMost(Duration.ofSeconds(10)).untilAsserted(() ->
-            assertThat(repository.count()).isEqualTo(1L));
+        // Then
+        assertThat(storedDocument()).isEqualTo(storedAfterFirstDelivery);
     }
 
     @Test
@@ -217,6 +224,12 @@ class NotificationSqsListenerIT extends IntegrationBase {
         // Then — non-retryable: message must be deleted from the queue (not redelivered)
         awaitQueueEmpty();
         assertThat(repository.count()).isZero();
+    }
+
+    private Document storedDocument() {
+        return mongoTemplate.getCollection(mongoTemplate.getCollectionName(AggregatedNotification.class))
+            .find(new Document("_id", AGGREGATE_ID))
+            .first();
     }
 
     private static String notificationEdited(long version) {
