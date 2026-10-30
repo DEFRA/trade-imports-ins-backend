@@ -34,10 +34,8 @@ class NotificationSqsListenerIT extends IntegrationBase {
 
     @Test
     void notificationEdited_createsDocumentInMongo() {
-        // Given
         sendToSqs(notificationEdited(1), AGGREGATE_ID);
 
-        // When / Then
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
             Optional<AggregatedNotification> doc = repository.findById(AGGREGATE_ID);
             assertThat(doc).isPresent();
@@ -52,10 +50,8 @@ class NotificationSqsListenerIT extends IntegrationBase {
 
     @Test
     void notificationEdited_storesTheArrivalDateAsAnIsoDateString_andLastUpdatedAsADate() {
-        // Given
         sendToSqs(notificationEdited(1), AGGREGATE_ID);
 
-        // When / Then
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
             Document stored = storedDocument();
             assertThat(stored).isNotNull();
@@ -67,7 +63,6 @@ class NotificationSqsListenerIT extends IntegrationBase {
 
     @Test
     void notificationFromACountrySubdivision_storesTheSubdivisionCode() {
-        // Given — a Canary Islands origin, as the backend publishes it
         String body = """
             {
               "aggregateId": "%s",
@@ -92,10 +87,8 @@ class NotificationSqsListenerIT extends IntegrationBase {
             }
             """.formatted(AGGREGATE_ID);
 
-        // When
         sendToSqs(body, AGGREGATE_ID);
 
-        // Then
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
             Optional<AggregatedNotification> doc = repository.findById(AGGREGATE_ID);
             assertThat(doc).isPresent();
@@ -106,7 +99,6 @@ class NotificationSqsListenerIT extends IntegrationBase {
 
     @Test
     void amendmentToAWholeCountryOrigin_clearsTheSubdivisionCode() {
-        // Given — a Canary Islands origin is stored
         String subdivisionOrigin = """
             {
               "aggregateId": "%s",
@@ -129,10 +121,8 @@ class NotificationSqsListenerIT extends IntegrationBase {
             assertThat(repository.findById(AGGREGATE_ID))
                 .hasValueSatisfying(doc -> assertThat(doc.getOriginCountrySubdivisionCode()).isEqualTo("ES-CN")));
 
-        // When — a later version moves the origin to a whole country
         sendToSqs(notificationEdited(2), AGGREGATE_ID);
 
-        // Then
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
             assertThat(repository.findById(AGGREGATE_ID)).hasValueSatisfying(doc -> {
                 assertThat(doc.getOriginCountry()).isEqualTo("GB");
@@ -142,7 +132,6 @@ class NotificationSqsListenerIT extends IntegrationBase {
 
     @Test
     void deliveringSameEventTwice_leavesTheStoredDocumentUnchanged() {
-        // Given
         String eventWithNoIssueDateTime = """
             {
               "aggregateId": "%s",
@@ -158,42 +147,34 @@ class NotificationSqsListenerIT extends IntegrationBase {
             assertThat(storedDocument()).isNotNull());
         Document storedAfterFirstDelivery = storedDocument();
 
-        // When
         sendToSqs(eventWithNoIssueDateTime, AGGREGATE_ID);
         awaitQueueEmpty();
 
-        // Then
         assertThat(storedDocument()).isEqualTo(storedAfterFirstDelivery);
     }
 
     @Test
     void lowerAggregateVersion_isIgnored_documentKeepsHigherVersion() {
-        // Given
         sendToSqs(notificationEdited(5), AGGREGATE_ID);
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
             assertThat(repository.findById(AGGREGATE_ID)).isPresent());
 
-        // When
         sendToSqs(notificationEdited(3), AGGREGATE_ID);
 
-        // Then
         await().during(Duration.ofSeconds(5)).atMost(Duration.ofSeconds(10)).untilAsserted(() ->
             assertThat(repository.findById(AGGREGATE_ID).map(AggregatedNotification::getAggregateVersion))
                 .hasValue(5L));
     }
 
     @Test
-    void lifecycleEvent_notificationSubmitted_updatesStatus() {
-        // Given — prime the store with a DRAFT from a NotificationEdited
+    void notificationSubmitted_updatesStatus_andKeepsTheStoredCommodity() {
         sendToSqs(notificationEdited(1), AGGREGATE_ID);
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
             assertThat(repository.findById(AGGREGATE_ID).map(AggregatedNotification::getStatus))
                 .hasValue("DRAFT"));
 
-        // When — submit event arrives, carrying no includedConsignmentItem
-        sendToSqs(notificationSubmitted(), AGGREGATE_ID);
+        sendToSqs(notificationSubmittedWithNoCommodity(), AGGREGATE_ID);
 
-        // Then — status must update to SUBMITTED, and the previously stored commodity survives
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
             assertThat(repository.findById(AGGREGATE_ID).map(AggregatedNotification::getStatus))
                 .hasValue("SUBMITTED"));
@@ -203,25 +184,20 @@ class NotificationSqsListenerIT extends IntegrationBase {
 
     @Test
     void unknownEventType_isDeletedWithoutBeingStored() {
-        // Given
         String body = """
             {"aggregateId":"%s","aggregateVersion":1,"eventType":"uk.gov.defra.imports.notification.UnknownEvent"}
             """.formatted(AGGREGATE_ID);
 
-        // When
         sendToSqs(body, AGGREGATE_ID);
 
-        // Then
         awaitQueueEmpty();
         assertThat(repository.findById(AGGREGATE_ID)).isEmpty();
     }
 
     @Test
     void invalidJson_isDeletedWithoutBeingStored() {
-        // Given / When
         sendToSqs("not valid json {{{", AGGREGATE_ID);
 
-        // Then
         awaitQueueEmpty();
         assertThat(repository.count()).isZero();
     }
@@ -261,7 +237,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
             """.formatted(NotificationSqsListenerIT.AGGREGATE_ID, version);
     }
 
-    private static String notificationSubmitted() {
+    private static String notificationSubmittedWithNoCommodity() {
         return """
             {
               "aggregateId": "%s",
