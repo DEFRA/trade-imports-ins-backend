@@ -34,7 +34,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_callsMongoTemplate_withVersionGuardedQuery() throws Exception {
+    void upsert_shouldUpsertWithVersionGuardedQuery_whenNotificationEdited() throws Exception {
         JsonNode body = mapper.readTree(fullNotificationEdited(3));
 
         service.upsert(body);
@@ -43,13 +43,11 @@ class NotificationUpsertServiceTest {
         ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
         verify(mongoTemplate).upsert(queryCaptor.capture(), updateCaptor.capture(), eq(AggregatedNotification.class));
 
-        // Query must filter on _id AND aggregateVersion < incomingVersion
         Document queryDoc = queryCaptor.getValue().getQueryObject();
         assertThat(queryDoc).containsEntry("_id", "agg-1");
         Document versionFilter = queryDoc.get("aggregateVersion", Document.class);
         assertThat(versionFilter).containsEntry("$lt", 3L);
 
-        // Update must include the snapshot fields — inspect BSON document directly to avoid codec issues
         Document updateDoc = updateCaptor.getValue().getUpdateObject();
         Document setOnInsert = updateDoc.get("$setOnInsert", Document.class);
         assertThat(setOnInsert).containsEntry("_id", "agg-1");
@@ -60,7 +58,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_throwsNonRetryable_whenAggregateIdMissing() throws Exception {
+    void upsert_shouldThrowNonRetryable_whenAggregateIdMissing() throws Exception {
         JsonNode body = mapper.readTree("""
             {"aggregateVersion":1,"eventType":"uk.gov.defra.imports.notification.NotificationEdited"}
             """);
@@ -70,7 +68,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_throwsNonRetryable_whenAggregateVersionMissing() throws Exception {
+    void upsert_shouldThrowNonRetryable_whenAggregateVersionMissing() throws Exception {
         JsonNode body = mapper.readTree("""
             {"aggregateId":"agg-1","eventType":"uk.gov.defra.imports.notification.NotificationEdited"}
             """);
@@ -80,8 +78,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_throwsNonRetryable_whenIssueDateTimeIsMalformed() throws Exception {
-        // Given
+    void upsert_shouldThrowNonRetryable_whenIssueDateTimeIsMalformed() throws Exception {
         JsonNode body = mapper.readTree("""
             {
               "aggregateId": "agg-1",
@@ -94,7 +91,6 @@ class NotificationUpsertServiceTest {
             }
             """);
 
-        // When / Then
         assertThatThrownBy(() -> service.upsert(body))
             .isInstanceOf(SqsNonRetryableException.class)
             .hasMessageContaining("issueDateTime")
@@ -102,15 +98,11 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_delegatesVersionFilterToMongo_forStaleEvent() throws Exception {
-        // Given — version 1 would be stale if the store already holds version 3, but the service
-        // does not check staleness itself; it always issues the upsert and lets MongoDB match nothing.
+    void upsert_shouldApplyVersionFilterToMongo_whenEventVersionIsStale() throws Exception {
         JsonNode body = mapper.readTree(fullNotificationEdited(1));
 
-        // When
         service.upsert(body);
 
-        // Then — the query encodes $lt: 1 so MongoDB will match no document and apply no write
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
         verify(mongoTemplate).upsert(queryCaptor.capture(), any(Update.class), eq(AggregatedNotification.class));
         Document versionFilter = queryCaptor.getValue().getQueryObject().get("aggregateVersion", Document.class);
@@ -118,30 +110,110 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_doesNotSetMissingFields() throws Exception {
-        // Lifecycle event with no data node — version guard still runs, optional fields skipped
+    void upsert_shouldSetOnlyVersionAndLastUpdated_whenLifecycleEventHasNoData() throws Exception {
+        JsonNode body = mapper.readTree(lifecycleEventWithNoData());
+
+        service.upsert(body);
+
+        Document setFields = upsertedSetFields();
+        assertThat(setFields).containsOnlyKeys("aggregateVersion", "lastUpdated");
+        assertThat(upsertedUnsetFields()).isNull();
+    }
+
+    @Test
+    void upsert_shouldStoreOriginCountrySubdivisionCode_whenFunctionIs106() throws Exception {
+        JsonNode body = mapper.readTree(canaryIslandsOriginEvent());
+
+        service.upsert(body);
+
+        Document setFields = upsertedSetFields();
+        assertThat(setFields).containsEntry("originCountry", "ES")
+            .containsEntry("originCountrySubdivisionCode", "ES-CN")
+            .doesNotContainValue("ES-12345");
+    }
+
+    @Test
+    void upsert_shouldStoreCommodityFromTradeLineDescription() throws Exception {
         JsonNode body = mapper.readTree("""
-            {"aggregateId":"agg-1","aggregateVersion":2}
+            {
+              "aggregateId": "agg-1",
+              "aggregateVersion": 1,
+              "data": {
+                "specifiedConsignment": {
+                  "includedConsignmentItem": [{
+                    "includedTradeLineItem": [{
+                      "description": ["Live bovine animals"],
+                      "commonName": "Domestic cattle"
+                    }]
+                  }]
+                }
+              }
+            }
             """);
 
         service.upsert(body);
 
-        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
-
-        Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
-        assertThat(setFields).doesNotContainKey("referenceNumber")
-            .doesNotContainKey("status")
-            .doesNotContainKey("originCountrySubdivisionCode");
-        // No origin on the event, so a stored subdivision is left alone rather than cleared
-        assertThat(updateCaptor.getValue().getUpdateObject().get("$unset", Document.class)).isNull();
+        assertThat(upsertedSetFields()).containsEntry("commodity", "Live bovine animals");
     }
 
     @Test
-    void upsert_shouldStoreTheCountrySubdivisionCode_andNotTheRegionOfOriginCode() throws Exception {
-        // Given — a Canary Islands origin; the authority sub-division comes first, so the code is
-        // picked by function ('106'), not by position
+    void upsert_shouldStoreCommodityFromCommonName_whenDescriptionMissing() throws Exception {
         JsonNode body = mapper.readTree("""
+            {
+              "aggregateId": "agg-1",
+              "aggregateVersion": 1,
+              "data": {
+                "specifiedConsignment": {
+                  "includedConsignmentItem": [{
+                    "includedTradeLineItem": [{
+                      "commonName": "Domestic cattle"
+                    }]
+                  }]
+                }
+              }
+            }
+            """);
+
+        service.upsert(body);
+
+        assertThat(upsertedSetFields()).containsEntry("commodity", "Domestic cattle");
+    }
+
+    @Test
+    void upsert_shouldClearSubdivisionCode_whenOriginIsAWholeCountry() throws Exception {
+        JsonNode body = mapper.readTree(fullNotificationEdited(1));
+
+        service.upsert(body);
+
+        Document setFields = upsertedSetFields();
+        Document unsetFields = upsertedUnsetFields();
+        assertThat(setFields).containsEntry("originCountry", "GB")
+            .doesNotContainKey("originCountrySubdivisionCode");
+        assertThat(unsetFields).containsKey("originCountrySubdivisionCode");
+    }
+
+    private Document upsertedSetFields() {
+        return lastUpsertUpdateDocument().get("$set", Document.class);
+    }
+
+    private Document upsertedUnsetFields() {
+        return lastUpsertUpdateDocument().get("$unset", Document.class);
+    }
+
+    private Document lastUpsertUpdateDocument() {
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
+        return updateCaptor.getValue().getUpdateObject();
+    }
+
+    private static String lifecycleEventWithNoData() {
+        return """
+            {"aggregateId":"agg-1","aggregateVersion":2}
+            """;
+    }
+
+    private static String canaryIslandsOriginEvent() {
+        return """
             {
               "aggregateId": "agg-1",
               "aggregateVersion": 1,
@@ -162,89 +234,7 @@ class NotificationUpsertServiceTest {
                 }
               }
             }
-            """);
-
-        // When
-        service.upsert(body);
-
-        // Then
-        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
-        Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
-        assertThat(setFields).containsEntry("originCountry", "ES")
-            .containsEntry("originCountrySubdivisionCode", "ES-CN")
-            .doesNotContainValue("ES-12345");
-    }
-
-    @Test
-    void upsert_shouldStoreDashboardCommodityFromTradeLineDescription() throws Exception {
-        JsonNode body = mapper.readTree("""
-            {
-              "aggregateId": "agg-1",
-              "aggregateVersion": 1,
-              "data": {
-                "specifiedConsignment": {
-                  "includedConsignmentItem": [{
-                    "includedTradeLineItem": [{
-                      "description": ["Live bovine animals"],
-                      "commonName": "Domestic cattle"
-                    }]
-                  }]
-                }
-              }
-            }
-            """);
-
-        service.upsert(body);
-
-        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
-        Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
-        assertThat(setFields).containsEntry("commodity", "Live bovine animals");
-    }
-
-    @Test
-    void upsert_shouldStoreDashboardCommodityFromCommonNameWhenDescriptionMissing() throws Exception {
-        JsonNode body = mapper.readTree("""
-            {
-              "aggregateId": "agg-1",
-              "aggregateVersion": 1,
-              "data": {
-                "specifiedConsignment": {
-                  "includedConsignmentItem": [{
-                    "includedTradeLineItem": [{
-                      "commonName": "Domestic cattle"
-                    }]
-                  }]
-                }
-              }
-            }
-            """);
-
-        service.upsert(body);
-
-        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
-        Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
-        assertThat(setFields).containsEntry("commodity", "Domestic cattle");
-    }
-
-    @Test
-    void upsert_shouldClearSubdivisionCode_whenOriginIsAWholeCountry() throws Exception {
-        // Given — a whole-country origin, as after an amendment away from a subdivision
-        JsonNode body = mapper.readTree(fullNotificationEdited(1));
-
-        // When
-        service.upsert(body);
-
-        // Then
-        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
-        Document setFields = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
-        Document unsetFields = updateCaptor.getValue().getUpdateObject().get("$unset", Document.class);
-        assertThat(setFields).containsEntry("originCountry", "GB")
-            .doesNotContainKey("originCountrySubdivisionCode");
-        assertThat(unsetFields).containsKey("originCountrySubdivisionCode");
+            """;
     }
 
     private static String fullNotificationEdited(long version) {
