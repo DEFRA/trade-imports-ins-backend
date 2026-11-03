@@ -60,3 +60,11 @@ A call can be one search or the other. A request with both answers 400 rather th
 ## TLS
 
 `TrustStoreConfiguration` builds an `SSLContext` that tries the JVM's default trust store first and then the CDP root CA from `cdp.certificate`. It runs at highest precedence so the context exists before the Mongo client and HTTP clients are made.
+
+## Aggregated notification upsert
+
+`NotificationUpsertService` applies each animals outbox event to the INS read model in one MongoDB upsert. The query matches `_id` and `aggregateVersion` less than the incoming version, so concurrent or out-of-order events converge on the highest applied version without a separate read.
+
+Origin country subdivision is taken from the GBN-AG sub-division whose function type code is `106` (UNCL3227 region of origin), not from position in the array and not from `regionOfOriginCode`, which INS does not store. When an event carries an origin country without a subdivision, any stored subdivision is cleared; when an event carries no origin (for example a lifecycle message with no `data` payload), subdivision is left unchanged.
+
+The dashboard `commodity` field is the first trade line's `description`, or `commonName` when description is absent. A log line records aggregate id and version when the commonName fallback is used.

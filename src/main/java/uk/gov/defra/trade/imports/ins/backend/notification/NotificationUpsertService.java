@@ -18,8 +18,6 @@ public class NotificationUpsertService {
 
   private static final String AGGREGATE_VERSION = "aggregateVersion";
   private static final String ORIGIN_COUNTRY = "originCountry";
-  // UNCL3227 location function 106 (the code list calls it "Region of origin"): here, the country
-  // subdivision the goods came from. Not the region of origin code, which INS does not store.
   private static final String SUBDIVISION_OF_ORIGIN = "106";
   private final MongoTemplate mongoTemplate;
 
@@ -54,11 +52,19 @@ public class NotificationUpsertService {
                 .path("arrivalEvent").path(0)
                 .path("scheduledOccurrenceDateTime"));
 
-        String commodity = textOrNull(
-            specifiedConsignment
-                .path("includedConsignmentItem").path(0)
-                .path("includedTradeLineItem").path(0)
-                .path("commonName"));
+        JsonNode firstTradeLine = specifiedConsignment
+            .path("includedConsignmentItem").path(0)
+            .path("includedTradeLineItem").path(0);
+        String commodity = textOrNull(firstTradeLine.path("description").path(0));
+        if (commodity == null) {
+            commodity = textOrNull(firstTradeLine.path("commonName"));
+            if (commodity != null) {
+                log.info(
+                    "No trade-line description, dashboard commodity taken from commonName: aggregateId={}, aggregateVersion={}",
+                    aggregateId,
+                    incomingVersion);
+            }
+        }
 
         Instant lastUpdated = lastUpdatedStr != null
             ? parseInstant(lastUpdatedStr, "issueDateTime", aggregateId)
@@ -68,9 +74,6 @@ public class NotificationUpsertService {
             ? parseInstant(arrivalDateStr, "scheduledOccurrenceDateTime", aggregateId)
             : null;
 
-        // Single atomic operation: only applies when the stored version is lower than the incoming
-        // version. Concurrent events for the same notification and out-of-order redelivery both
-        // converge to the highest applied version without a read-then-write race.
         Update update = new Update()
             .setOnInsert("_id", aggregateId)
             .set(AGGREGATE_VERSION, incomingVersion)
@@ -79,9 +82,6 @@ public class NotificationUpsertService {
         if (referenceNumber != null) update.set("referenceNumber", referenceNumber);
         if (status != null) update.set("status", status);
         if (originCountry != null) update.set(ORIGIN_COUNTRY, originCountry);
-        // The subdivision belongs to the origin it arrived with. An event that carries an origin
-        // with no subdivision (say, an amendment from the Canary Islands to mainland France) clears
-        // it; an event with no origin at all, such as a lifecycle event, leaves it alone.
         if (originCountrySubdivisionCode != null) {
             update.set("originCountrySubdivisionCode", originCountrySubdivisionCode);
         } else if (originCountry != null) {
@@ -99,8 +99,6 @@ public class NotificationUpsertService {
         log.info("Upserted aggregatedNotification: aggregateId={}, aggregateVersion={}", aggregateId, incomingVersion);
     }
 
-    // The origin's subdivision is its '106' sub-division entry; a country can carry other
-    // sub-divisions too, so the code is picked by function, not position.
     private static String countrySubdivisionCode(JsonNode subDivisions) {
         for (JsonNode subDivision : subDivisions) {
             if (SUBDIVISION_OF_ORIGIN.equals(subDivision.path("functionTypeCode").path("content").asText(null))) {
