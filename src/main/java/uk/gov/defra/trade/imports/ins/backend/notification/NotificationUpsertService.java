@@ -20,7 +20,7 @@ public class NotificationUpsertService {
 
   private static final String AGGREGATE_VERSION = "aggregateVersion";
   private static final String ORIGIN_COUNTRY = "originCountry";
-  private static final String SUBDIVISION_OF_ORIGIN = "106";
+  private static final String LOCATION_FUNCTION_SUBDIVISION_OF_ORIGIN = "106";
   private final MongoTemplate mongoTemplate;
 
     public void upsert(JsonNode body) {
@@ -104,7 +104,7 @@ public class NotificationUpsertService {
 
     private static String countrySubdivisionCode(JsonNode subDivisions) {
         for (JsonNode subDivision : subDivisions) {
-            if (SUBDIVISION_OF_ORIGIN.equals(subDivision.path("functionTypeCode").path("content").asText(null))) {
+            if (LOCATION_FUNCTION_SUBDIVISION_OF_ORIGIN.equals(subDivision.path("functionTypeCode").path("content").asText(null))) {
                 return text(subDivision.path("identifier"));
             }
         }
