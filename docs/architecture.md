@@ -48,6 +48,18 @@ A call can be one search or the other. A request with both answers 400 rather th
 - Durations are published as running totals, because a counter survives being summed across a minute's flush and across instances. Mean lookup time is `addressLookup.durationMs.lookup` divided by `addressLookup.searches`. The publisher cannot carry a distribution, so there are no percentiles.
 - Every counter is registered at zero up front. A counter created by its first increment is first scraped above zero, and a Prometheus `increase()` cannot see that first rise.
 
+## Notification dates
+
+- `arrivalDate` is a calendar date: a `LocalDate` on the document and in the API, `YYYY-MM-DD` on the wire, and a string in Mongo. The pair of converters in `LocalDateStringConverters`, registered in `MongoConfig`, stores it as that string. Without them Spring Data writes a BSON date at midnight in the JVM's zone, and the stored day then depends on where the service runs. `YYYY-MM-DD` strings sort in date order, so the `arrivalDate` sort and the `status_sort_fields` index work on the string.
+- The GBN-AG event carries the arrival as an instant, `scheduledOccurrenceDateTime`, because PIMS needs one. The animals backend writes it at the start of the chosen day in UTC, so `NotificationUpsertService` takes the day back in UTC, whatever the JVM's zone.
+- `lastUpdated` is a moment: an `Instant`, RFC 3339 with a `Z` on the wire, and a BSON date in Mongo.
+
+## Notification upserts
+
+- `NotificationUpsertService` writes each event in one Mongo upsert whose query matches only a stored `aggregateVersion` lower than the incoming one. Concurrent events for the same notification and out-of-order redelivery both converge on the highest version, with no read-then-write race.
+- `originCountrySubdivisionCode` is the origin's sub-division with UNCL3227 location function 106, which the code list calls "Region of origin". INS uses it for the country subdivision the goods came from, and does not store a region of origin code. A country can carry other sub-divisions too, so the code is picked by its function, not its position.
+- The subdivision belongs to the origin it arrived with. An event that carries an origin with no subdivision, such as an amendment from the Canary Islands to mainland France, clears it. An event with no origin at all, such as a lifecycle event, leaves it alone.
+
 ## Outbound proxy
 
 - CDP sends all egress except database traffic through its proxy. `ProxyConfig` sets the JVM proxy properties and the default `ProxySelector` from `HTTP_PROXY`, so every Java HTTP client uses it.

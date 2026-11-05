@@ -5,19 +5,26 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static uk.gov.defra.trade.imports.ins.backend.testsupport.JvmDefaultZoneExtension.EAST_OF_UTC;
+import static uk.gov.defra.trade.imports.ins.backend.testsupport.JvmDefaultZoneExtension.WEST_OF_UTC;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDate;
 import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import uk.gov.defra.trade.imports.ins.backend.testsupport.JvmDefaultZoneExtension;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationUpsertServiceTest {
@@ -28,27 +35,29 @@ class NotificationUpsertServiceTest {
     private NotificationUpsertService service;
     private final ObjectMapper mapper = new ObjectMapper();
 
+    @RegisterExtension
+    final JvmDefaultZoneExtension jvmDefaultZone = new JvmDefaultZoneExtension();
+
     @BeforeEach
     void setup() {
         service = new NotificationUpsertService(mongoTemplate);
     }
 
     @Test
-    void upsert_shouldUpsertWithVersionGuardedQuery_whenNotificationEdited() throws Exception {
+    void upsert_shouldUpsertTheSnapshot_onlyOverAnOlderStoredVersion() throws Exception {
         JsonNode body = mapper.readTree(fullNotificationEdited(3));
 
         service.upsert(body);
 
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
-        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        verify(mongoTemplate).upsert(queryCaptor.capture(), updateCaptor.capture(), eq(AggregatedNotification.class));
+        verify(mongoTemplate).upsert(queryCaptor.capture(), any(Update.class), eq(AggregatedNotification.class));
 
         Document queryDoc = queryCaptor.getValue().getQueryObject();
         assertThat(queryDoc).containsEntry("_id", "agg-1");
         Document versionFilter = queryDoc.get("aggregateVersion", Document.class);
         assertThat(versionFilter).containsEntry("$lt", 3L);
 
-        Document updateDoc = updateCaptor.getValue().getUpdateObject();
+        Document updateDoc = lastUpsertUpdateDocument();
         Document setOnInsert = updateDoc.get("$setOnInsert", Document.class);
         assertThat(setOnInsert).containsEntry("_id", "agg-1");
         Document setFields = updateDoc.get("$set", Document.class);
@@ -58,7 +67,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_shouldThrowNonRetryable_whenAggregateIdMissing() throws Exception {
+    void upsert_shouldRejectAsNonRetryable_whenAggregateIdIsMissing() throws Exception {
         JsonNode body = mapper.readTree("""
             {"aggregateVersion":1,"eventType":"uk.gov.defra.imports.notification.NotificationEdited"}
             """);
@@ -68,7 +77,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_shouldThrowNonRetryable_whenAggregateVersionMissing() throws Exception {
+    void upsert_shouldRejectAsNonRetryable_whenAggregateVersionIsMissing() throws Exception {
         JsonNode body = mapper.readTree("""
             {"aggregateId":"agg-1","eventType":"uk.gov.defra.imports.notification.NotificationEdited"}
             """);
@@ -78,7 +87,7 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_shouldThrowNonRetryable_whenIssueDateTimeIsMalformed() throws Exception {
+    void upsert_shouldRejectAsNonRetryable_whenIssueDateTimeIsNotADate() throws Exception {
         JsonNode body = mapper.readTree("""
             {
               "aggregateId": "agg-1",
@@ -97,8 +106,30 @@ class NotificationUpsertServiceTest {
             .hasMessageContaining("agg-1");
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {WEST_OF_UTC, EAST_OF_UTC})
+    void upsert_shouldSetTheUtcCalendarDayOfTheScheduledArrival_whateverTheJvmDefaultZone(
+        String zoneId) throws Exception {
+        jvmDefaultZone.setJvmDefaultZone(zoneId);
+        JsonNode body = mapper.readTree(eventScheduledToArriveAt("2026-07-21T00:00:00Z"));
+
+        service.upsert(body);
+
+        assertThat(upsertedSetFields()).containsEntry("arrivalDate", LocalDate.of(2026, 7, 21));
+    }
+
     @Test
-    void upsert_shouldApplyVersionFilterToMongo_whenEventVersionIsStale() throws Exception {
+    void upsert_shouldRejectAsNonRetryable_whenScheduledOccurrenceDateTimeHasNoTime() throws Exception {
+        JsonNode body = mapper.readTree(eventScheduledToArriveAt("2026-07-21"));
+
+        assertThatThrownBy(() -> service.upsert(body))
+            .isInstanceOf(SqsNonRetryableException.class)
+            .hasMessageContaining("scheduledOccurrenceDateTime")
+            .hasMessageContaining("agg-1");
+    }
+
+    @Test
+    void upsert_shouldLeaveStaleEventsToTheVersionFilter_ratherThanSkippingThemItself() throws Exception {
         JsonNode body = mapper.readTree(fullNotificationEdited(1));
 
         service.upsert(body);
@@ -122,7 +153,7 @@ class NotificationUpsertServiceTest {
 
     @Test
     void upsert_shouldStoreOriginCountrySubdivisionCode_whenFunctionIs106() throws Exception {
-        JsonNode body = mapper.readTree(canaryIslandsOriginEvent());
+        JsonNode body = mapper.readTree(eventFromTheCanaryIslandsWithAnotherSubDivisionListedFirst());
 
         service.upsert(body);
 
@@ -212,7 +243,7 @@ class NotificationUpsertServiceTest {
             """;
     }
 
-    private static String canaryIslandsOriginEvent() {
+    private static String eventFromTheCanaryIslandsWithAnotherSubDivisionListedFirst() {
         return """
             {
               "aggregateId": "agg-1",
@@ -235,6 +266,22 @@ class NotificationUpsertServiceTest {
               }
             }
             """;
+    }
+
+    private static String eventScheduledToArriveAt(String scheduledOccurrenceDateTime) {
+        return """
+            {
+              "aggregateId": "agg-1",
+              "aggregateVersion": 1,
+              "data": {
+                "specifiedConsignment": {
+                  "mainCarriageLogisticsTransportMovement": [
+                    { "arrivalEvent": [{ "scheduledOccurrenceDateTime": "%s" }] }
+                  ]
+                }
+              }
+            }
+            """.formatted(scheduledOccurrenceDateTime);
     }
 
     private static String fullNotificationEdited(long version) {
