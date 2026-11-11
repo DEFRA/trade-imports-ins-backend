@@ -34,6 +34,12 @@ public class NotificationUpsertService {
             throw new SqsNonRetryableException("Missing or negative aggregateVersion in event body for aggregateId=" + aggregateId);
         }
 
+        String organisationId = text(body.path("organisationId"));
+        if (organisationId == null) {
+            throw new SqsNonRetryableException(
+                "Missing organisationId in event body for aggregateId=" + aggregateId);
+        }
+
         JsonNode data = body.path("data");
         JsonNode exchangedDocument = data.path("exchangedDocument");
         JsonNode specifiedConsignment = data.path("specifiedConsignment");
@@ -82,6 +88,7 @@ public class NotificationUpsertService {
             .set(AGGREGATE_VERSION, incomingVersion)
             .set("lastUpdated", lastUpdated);
 
+        update.set("organisationId", organisationId);
         if (referenceNumber != null) update.set("referenceNumber", referenceNumber);
         if (status != null) update.set("status", status);
         if (originCountry != null) update.set(ORIGIN_COUNTRY, originCountry);

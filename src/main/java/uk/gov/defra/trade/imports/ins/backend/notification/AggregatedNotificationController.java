@@ -13,7 +13,9 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
+import uk.gov.defra.trade.imports.ins.backend.filter.OrganisationHeaderFilter;
 
 @RestController
 @RequestMapping("/notifications")
@@ -36,8 +38,9 @@ public class AggregatedNotificationController {
     public AggregatedNotificationPageResponse findAll(
         @RequestParam(defaultValue = "1") @Min(1) int page,
         @RequestParam(required = false) String sort,
-        @RequestParam(required = false) String referenceNumber) {
+        @RequestParam(required = false) String referenceNumber,
+        @RequestHeader(OrganisationHeaderFilter.ORGANISATION_ID_HEADER) String organisationId) {
         log.debug("GET /notifications?page={}&sort={}&referenceNumber={}", page, sort, referenceNumber);
-        return queryService.findAll(page, sort, referenceNumber);
+        return queryService.findAll(page, sort, referenceNumber, organisationId);
     }
 }

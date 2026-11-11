@@ -24,6 +24,7 @@ import org.springframework.data.domain.Pageable;
 class AggregatedNotificationQueryServiceTest {
 
     private static final int PAGE_SIZE = 25;
+    private static final String ORGANISATION_ID = "5900001";
 
     @Mock
     private AggregatedNotificationRepository repository;
@@ -43,30 +44,32 @@ class AggregatedNotificationQueryServiceTest {
             .status("SUBMITTED")
             .build();
         Pageable expectedPageable = PageRequest.of(0, PAGE_SIZE);
-        when(repository.findAllByStatusNot(eq("DELETED"), any()))
+        when(repository.findAllByOrganisationIdAndStatusNot(eq(ORGANISATION_ID), eq("DELETED"), any()))
             .thenReturn(new PageImpl<>(List.of(notification), expectedPageable, 1));
 
-        AggregatedNotificationPageResponse response = service.findAll(1, null, null);
+        AggregatedNotificationPageResponse response = service.findAll(1, null, null, ORGANISATION_ID);
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
-        verify(repository).findAllByStatusNot(eq("DELETED"), pageableCaptor.capture());
+        verify(repository).findAllByOrganisationIdAndStatusNot(
+            eq(ORGANISATION_ID), eq("DELETED"), pageableCaptor.capture());
         assertThat(pageableCaptor.getValue().getPageNumber()).isZero();
         assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(PAGE_SIZE);
         assertThat(response.content()).containsExactly(notification);
         assertThat(response.page()).isEqualTo(1);
         assertThat(response.totalElements()).isEqualTo(1L);
-        verify(repository, never()).findByReferenceNumberAndStatusNot(any(), any());
+        verify(repository, never()).findByReferenceNumberAndOrganisationIdAndStatusNot(any(), any(), any());
     }
 
     @Test
     void findAll_secondPage_isZeroIndexedAgainstRepository() {
-        when(repository.findAllByStatusNot(eq("DELETED"), any()))
+        when(repository.findAllByOrganisationIdAndStatusNot(eq(ORGANISATION_ID), eq("DELETED"), any()))
             .thenReturn(Page.empty());
 
-        service.findAll(2, null, null);
+        service.findAll(2, null, null, ORGANISATION_ID);
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
-        verify(repository).findAllByStatusNot(eq("DELETED"), pageableCaptor.capture());
+        verify(repository).findAllByOrganisationIdAndStatusNot(
+            eq(ORGANISATION_ID), eq("DELETED"), pageableCaptor.capture());
         assertThat(pageableCaptor.getValue().getPageNumber()).isEqualTo(1);
     }
 
@@ -77,22 +80,26 @@ class AggregatedNotificationQueryServiceTest {
             .referenceNumber("GBN-AG-26-001")
             .status("SUBMITTED")
             .build();
-        when(repository.findByReferenceNumberAndStatusNot("GBN-AG-26-001", "DELETED"))
+        when(repository.findByReferenceNumberAndOrganisationIdAndStatusNot(
+                "GBN-AG-26-001", ORGANISATION_ID, "DELETED"))
             .thenReturn(Optional.of(notification));
 
-        AggregatedNotificationPageResponse response = service.findAll(1, null, "GBN-AG-26-001");
+        AggregatedNotificationPageResponse response =
+            service.findAll(1, null, "GBN-AG-26-001", ORGANISATION_ID);
 
         assertThat(response.content()).containsExactly(notification);
         assertThat(response.totalElements()).isEqualTo(1L);
-        verify(repository, never()).findAllByStatusNot(any(), any());
+        verify(repository, never()).findAllByOrganisationIdAndStatusNot(any(), any(), any());
     }
 
     @Test
     void findAll_referenceNumberWithNoMatch_returnsEmptyPage_notAnError() {
-        when(repository.findByReferenceNumberAndStatusNot("GBN-AG-26-999", "DELETED"))
+        when(repository.findByReferenceNumberAndOrganisationIdAndStatusNot(
+                "GBN-AG-26-999", ORGANISATION_ID, "DELETED"))
             .thenReturn(Optional.empty());
 
-        AggregatedNotificationPageResponse response = service.findAll(1, null, "GBN-AG-26-999");
+        AggregatedNotificationPageResponse response =
+            service.findAll(1, null, "GBN-AG-26-999", ORGANISATION_ID);
 
         assertThat(response.content()).isEmpty();
         assertThat(response.totalElements()).isZero();
@@ -105,10 +112,12 @@ class AggregatedNotificationQueryServiceTest {
             .referenceNumber("GBN-AG-26-001")
             .status("SUBMITTED")
             .build();
-        when(repository.findByReferenceNumberAndStatusNot("GBN-AG-26-001", "DELETED"))
+        when(repository.findByReferenceNumberAndOrganisationIdAndStatusNot(
+                "GBN-AG-26-001", ORGANISATION_ID, "DELETED"))
             .thenReturn(Optional.of(notification));
 
-        AggregatedNotificationPageResponse response = service.findAll(3, null, "GBN-AG-26-001");
+        AggregatedNotificationPageResponse response =
+            service.findAll(3, null, "GBN-AG-26-001", ORGANISATION_ID);
 
         assertThat(response.content()).containsExactly(notification);
         assertThat(response.page()).isEqualTo(1);
@@ -118,22 +127,24 @@ class AggregatedNotificationQueryServiceTest {
 
     @Test
     void findAll_referenceNumberIsTrimmedBeforeLookup() {
-        when(repository.findByReferenceNumberAndStatusNot("GBN-AG-26-001", "DELETED"))
+        when(repository.findByReferenceNumberAndOrganisationIdAndStatusNot(
+                "GBN-AG-26-001", ORGANISATION_ID, "DELETED"))
             .thenReturn(Optional.empty());
 
-        service.findAll(1, null, "  GBN-AG-26-001  ");
+        service.findAll(1, null, "  GBN-AG-26-001  ", ORGANISATION_ID);
 
-        verify(repository).findByReferenceNumberAndStatusNot("GBN-AG-26-001", "DELETED");
+        verify(repository).findByReferenceNumberAndOrganisationIdAndStatusNot(
+            "GBN-AG-26-001", ORGANISATION_ID, "DELETED");
     }
 
     @Test
     void findAll_blankReferenceNumber_isTreatedAsAbsent() {
-        when(repository.findAllByStatusNot(eq("DELETED"), any()))
+        when(repository.findAllByOrganisationIdAndStatusNot(eq(ORGANISATION_ID), eq("DELETED"), any()))
             .thenReturn(Page.empty());
 
-        service.findAll(1, null, "   ");
+        service.findAll(1, null, "   ", ORGANISATION_ID);
 
-        verify(repository).findAllByStatusNot(eq("DELETED"), any());
-        verify(repository, never()).findByReferenceNumberAndStatusNot(any(), any());
+        verify(repository).findAllByOrganisationIdAndStatusNot(eq(ORGANISATION_ID), eq("DELETED"), any());
+        verify(repository, never()).findByReferenceNumberAndOrganisationIdAndStatusNot(any(), any(), any());
     }
 }

@@ -7,7 +7,9 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 
 public interface AggregatedNotificationRepository extends MongoRepository<AggregatedNotification, String> {
 
-    Page<AggregatedNotification> findAllByStatusNot(String status, Pageable pageable);
+    Page<AggregatedNotification> findAllByOrganisationIdAndStatusNot(
+        String organisationId, String status, Pageable pageable);
 
-    Optional<AggregatedNotification> findByReferenceNumberAndStatusNot(String referenceNumber, String status);
+    Optional<AggregatedNotification> findByReferenceNumberAndOrganisationIdAndStatusNot(
+        String referenceNumber, String organisationId, String status);
 }

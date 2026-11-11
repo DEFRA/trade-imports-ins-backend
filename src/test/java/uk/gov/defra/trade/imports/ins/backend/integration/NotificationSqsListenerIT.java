@@ -213,6 +213,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
             {
               "aggregateId": "%s",
               "aggregateVersion": %d,
+              "organisationId": "5900001",
               "eventType": "uk.gov.defra.imports.notification.NotificationEdited",
               "data": {
                 "exchangedDocument": {
