@@ -29,6 +29,8 @@ import uk.gov.defra.trade.imports.ins.backend.testsupport.JvmDefaultZoneExtensio
 @ExtendWith(MockitoExtension.class)
 class NotificationUpsertServiceTest {
 
+    private static final String ORGANISATION_ID = "5900001";
+
     @Mock
     private MongoTemplate mongoTemplate;
 
@@ -63,7 +65,8 @@ class NotificationUpsertServiceTest {
         Document setFields = updateDoc.get("$set", Document.class);
         assertThat(setFields).containsEntry("referenceNumber", "GBN-AG-26-001")
             .containsEntry("status", "DRAFT")
-            .containsEntry("originCountry", "GB");
+            .containsEntry("originCountry", "GB")
+            .containsEntry("organisationId", ORGANISATION_ID);
     }
 
     @Test
@@ -87,18 +90,30 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
+    void upsert_shouldRejectAsNonRetryable_whenOrganisationIdIsMissing() throws Exception {
+        JsonNode body = mapper.readTree("""
+            {"aggregateId":"agg-1","aggregateVersion":1}
+            """);
+        assertThatThrownBy(() -> service.upsert(body))
+            .isInstanceOf(SqsNonRetryableException.class)
+            .hasMessageContaining("organisationId")
+            .hasMessageContaining("agg-1");
+    }
+
+    @Test
     void upsert_shouldRejectAsNonRetryable_whenIssueDateTimeIsNotADate() throws Exception {
         JsonNode body = mapper.readTree("""
             {
               "aggregateId": "agg-1",
               "aggregateVersion": 1,
+              "organisationId": "%s",
               "data": {
                 "exchangedDocument": {
                   "issueDateTime": "not-a-date"
                 }
               }
             }
-            """);
+            """.formatted(ORGANISATION_ID));
 
         assertThatThrownBy(() -> service.upsert(body))
             .isInstanceOf(SqsNonRetryableException.class)
@@ -147,7 +162,7 @@ class NotificationUpsertServiceTest {
         service.upsert(body);
 
         Document setFields = upsertedSetFields();
-        assertThat(setFields).containsOnlyKeys("aggregateVersion", "lastUpdated");
+        assertThat(setFields).containsOnlyKeys("aggregateVersion", "lastUpdated", "organisationId");
         assertThat(upsertedUnsetFields()).isNull();
     }
 
@@ -169,6 +184,7 @@ class NotificationUpsertServiceTest {
             {
               "aggregateId": "agg-1",
               "aggregateVersion": 1,
+              "organisationId": "%s",
               "data": {
                 "specifiedConsignment": {
                   "includedConsignmentItem": [{
@@ -180,7 +196,7 @@ class NotificationUpsertServiceTest {
                 }
               }
             }
-            """);
+            """.formatted(ORGANISATION_ID));
 
         service.upsert(body);
 
@@ -193,6 +209,7 @@ class NotificationUpsertServiceTest {
             {
               "aggregateId": "agg-1",
               "aggregateVersion": 1,
+              "organisationId": "%s",
               "data": {
                 "specifiedConsignment": {
                   "includedConsignmentItem": [{
@@ -203,7 +220,7 @@ class NotificationUpsertServiceTest {
                 }
               }
             }
-            """);
+            """.formatted(ORGANISATION_ID));
 
         service.upsert(body);
 
@@ -239,8 +256,8 @@ class NotificationUpsertServiceTest {
 
     private static String lifecycleEventWithNoData() {
         return """
-            {"aggregateId":"agg-1","aggregateVersion":2}
-            """;
+            {"aggregateId":"agg-1","aggregateVersion":2,"organisationId":"%s"}
+            """.formatted(ORGANISATION_ID);
     }
 
     private static String eventFromTheCanaryIslandsWithAnotherSubDivisionListedFirst() {
@@ -248,6 +265,7 @@ class NotificationUpsertServiceTest {
             {
               "aggregateId": "agg-1",
               "aggregateVersion": 1,
+              "organisationId": "%s",
               "data": {
                 "specifiedConsignment": {
                   "originCountry": {
@@ -265,7 +283,7 @@ class NotificationUpsertServiceTest {
                 }
               }
             }
-            """;
+            """.formatted(ORGANISATION_ID);
     }
 
     private static String eventScheduledToArriveAt(String scheduledOccurrenceDateTime) {
@@ -273,6 +291,7 @@ class NotificationUpsertServiceTest {
             {
               "aggregateId": "agg-1",
               "aggregateVersion": 1,
+              "organisationId": "%s",
               "data": {
                 "specifiedConsignment": {
                   "mainCarriageLogisticsTransportMovement": [
@@ -281,14 +300,15 @@ class NotificationUpsertServiceTest {
                 }
               }
             }
-            """.formatted(scheduledOccurrenceDateTime);
+            """.formatted(ORGANISATION_ID, scheduledOccurrenceDateTime);
     }
 
     private static String fullNotificationEdited(long version) {
         return """
             {
-              "aggregateId": "%s",
+              "aggregateId": "agg-1",
               "aggregateVersion": %d,
+              "organisationId": "%s",
               "eventType": "uk.gov.defra.imports.notification.NotificationEdited",
               "data": {
                 "exchangedDocument": {
@@ -309,6 +329,6 @@ class NotificationUpsertServiceTest {
                 }
               }
             }
-            """.formatted("agg-1", version);
+            """.formatted(version, ORGANISATION_ID);
     }
 }

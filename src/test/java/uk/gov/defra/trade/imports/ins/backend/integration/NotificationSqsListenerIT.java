@@ -19,6 +19,7 @@ import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotificatio
 class NotificationSqsListenerIT extends IntegrationBase {
 
     private static final String AGGREGATE_ID = "Imports.Notification.GBN-AG.GBN-AG-26-001";
+    private static final String ORGANISATION_ID = "5900001";
 
     @Autowired
     private AggregatedNotificationRepository repository;
@@ -67,6 +68,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
             {
               "aggregateId": "%s",
               "aggregateVersion": 1,
+              "organisationId": "%s",
               "eventType": "uk.gov.defra.imports.notification.NotificationSubmitted",
               "data": {
                 "exchangedDocument": { "identifier": "GBN-AG-26-001", "notificationStatusCode": "SUBMITTED" },
@@ -85,7 +87,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
                 }
               }
             }
-            """.formatted(AGGREGATE_ID);
+            """.formatted(AGGREGATE_ID, ORGANISATION_ID);
 
         sendToSqs(body, AGGREGATE_ID);
 
@@ -103,6 +105,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
             {
               "aggregateId": "%s",
               "aggregateVersion": 1,
+              "organisationId": "%s",
               "eventType": "uk.gov.defra.imports.notification.NotificationSubmitted",
               "data": {
                 "specifiedConsignment": {
@@ -115,7 +118,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
                 }
               }
             }
-            """.formatted(AGGREGATE_ID);
+            """.formatted(AGGREGATE_ID, ORGANISATION_ID);
         sendToSqs(subdivisionOrigin, AGGREGATE_ID);
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
             assertThat(repository.findById(AGGREGATE_ID))
@@ -136,12 +139,13 @@ class NotificationSqsListenerIT extends IntegrationBase {
             {
               "aggregateId": "%s",
               "aggregateVersion": 1,
+              "organisationId": "%s",
               "eventType": "uk.gov.defra.imports.notification.NotificationEdited",
               "data": {
                 "exchangedDocument": { "identifier": "GBN-AG-26-001", "notificationStatusCode": "DRAFT" }
               }
             }
-            """.formatted(AGGREGATE_ID);
+            """.formatted(AGGREGATE_ID, ORGANISATION_ID);
         sendToSqs(eventWithNoIssueDateTime, AGGREGATE_ID);
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
             assertThat(storedDocument()).isNotNull());
@@ -213,6 +217,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
             {
               "aggregateId": "%s",
               "aggregateVersion": %d,
+              "organisationId": "%s",
               "eventType": "uk.gov.defra.imports.notification.NotificationEdited",
               "data": {
                 "exchangedDocument": {
@@ -234,7 +239,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
                 }
               }
             }
-            """.formatted(NotificationSqsListenerIT.AGGREGATE_ID, version);
+            """.formatted(NotificationSqsListenerIT.AGGREGATE_ID, version, ORGANISATION_ID);
     }
 
     private static String notificationSubmittedWithNoCommodity() {
@@ -242,6 +247,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
             {
               "aggregateId": "%s",
               "aggregateVersion": %d,
+              "organisationId": "%s",
               "eventType": "uk.gov.defra.imports.notification.NotificationSubmitted",
               "data": {
                 "exchangedDocument": {
@@ -254,6 +260,6 @@ class NotificationSqsListenerIT extends IntegrationBase {
                 }
               }
             }
-            """.formatted(NotificationSqsListenerIT.AGGREGATE_ID, (long) 2);
+            """.formatted(NotificationSqsListenerIT.AGGREGATE_ID, (long) 2, ORGANISATION_ID);
     }
 }

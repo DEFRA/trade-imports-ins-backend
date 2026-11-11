@@ -20,6 +20,7 @@ public class NotificationUpsertService {
 
   private static final String AGGREGATE_VERSION = "aggregateVersion";
   private static final String ORIGIN_COUNTRY = "originCountry";
+  private static final String ORGANISATION_ID = "organisationId";
   private static final String LOCATION_FUNCTION_SUBDIVISION_OF_ORIGIN = "106";
   private final MongoTemplate mongoTemplate;
 
@@ -32,6 +33,12 @@ public class NotificationUpsertService {
         }
         if (incomingVersion < 0) {
             throw new SqsNonRetryableException("Missing or negative aggregateVersion in event body for aggregateId=" + aggregateId);
+        }
+
+        String organisationId = text(body.path(ORGANISATION_ID));
+        if (organisationId == null) {
+            throw new SqsNonRetryableException(
+                "Missing " + ORGANISATION_ID + " in event body for aggregateId=" + aggregateId);
         }
 
         JsonNode data = body.path("data");
@@ -57,16 +64,7 @@ public class NotificationUpsertService {
         JsonNode firstTradeLine = specifiedConsignment
             .path("includedConsignmentItem").path(0)
             .path("includedTradeLineItem").path(0);
-        String commodity = text(firstTradeLine.path("description").path(0));
-        if (commodity == null) {
-            commodity = text(firstTradeLine.path("commonName"));
-            if (commodity != null) {
-                log.info(
-                    "No trade-line description, dashboard commodity taken from commonName: aggregateId={}, aggregateVersion={}",
-                    aggregateId,
-                    incomingVersion);
-            }
-        }
+        String commodity = resolveCommodity(firstTradeLine, aggregateId, incomingVersion);
 
         Instant lastUpdated = lastUpdatedStr != null
             ? parseInstant(lastUpdatedStr, "issueDateTime", aggregateId)
@@ -82,14 +80,11 @@ public class NotificationUpsertService {
             .set(AGGREGATE_VERSION, incomingVersion)
             .set("lastUpdated", lastUpdated);
 
+        update.set(ORGANISATION_ID, organisationId);
         if (referenceNumber != null) update.set("referenceNumber", referenceNumber);
         if (status != null) update.set("status", status);
         if (originCountry != null) update.set(ORIGIN_COUNTRY, originCountry);
-        if (originCountrySubdivisionCode != null) {
-            update.set("originCountrySubdivisionCode", originCountrySubdivisionCode);
-        } else if (originCountry != null) {
-            update.unset("originCountrySubdivisionCode");
-        }
+        applyOriginCountrySubdivision(update, originCountry, originCountrySubdivisionCode);
         if (arrivalDate != null) update.set("arrivalDate", arrivalDate);
         if (commodity != null) update.set("commodity", commodity);
 
@@ -100,6 +95,31 @@ public class NotificationUpsertService {
         mongoTemplate.upsert(query, update, AggregatedNotification.class);
 
         log.info("Upserted aggregatedNotification: aggregateId={}, aggregateVersion={}", aggregateId, incomingVersion);
+    }
+
+    private static String resolveCommodity(
+            JsonNode firstTradeLine, String aggregateId, long incomingVersion) {
+        String commodity = text(firstTradeLine.path("description").path(0));
+        if (commodity != null) {
+            return commodity;
+        }
+        commodity = text(firstTradeLine.path("commonName"));
+        if (commodity != null) {
+            log.info(
+                "No trade-line description, dashboard commodity taken from commonName: aggregateId={}, aggregateVersion={}",
+                aggregateId,
+                incomingVersion);
+        }
+        return commodity;
+    }
+
+    private static void applyOriginCountrySubdivision(
+            Update update, String originCountry, String originCountrySubdivisionCode) {
+        if (originCountrySubdivisionCode != null) {
+            update.set("originCountrySubdivisionCode", originCountrySubdivisionCode);
+        } else if (originCountry != null) {
+            update.unset("originCountrySubdivisionCode");
+        }
     }
 
     private static String countrySubdivisionCode(JsonNode subDivisions) {

@@ -10,6 +10,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.security.web.SecurityFilterChain;
+import uk.gov.defra.trade.imports.ins.backend.filter.OrganisationHeaderFilter;
 
 @TestPropertySource(properties = {
     "spring.security.oauth2.client.registration.address-lookup.client-id=test-client",
@@ -19,12 +20,15 @@ import org.springframework.security.web.SecurityFilterChain;
     "spring.security.oauth2.client.provider.address-lookup.token-uri=http://localhost:8087/token"})
 class NoWebSecurityIT extends IntegrationBase {
 
+    private static final String ORGANISATION_ID = "5900001";
+
     @Autowired
     private ApplicationContext applicationContext;
 
     @Test
     void notifications_shouldAnswerWithoutCredentials() throws Exception {
-        mockMvc.perform(get("/notifications"))
+        mockMvc.perform(get("/notifications")
+                .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_ID))
             .andExpect(status().is2xxSuccessful());
     }
 

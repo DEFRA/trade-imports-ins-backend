@@ -15,11 +15,14 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import uk.gov.defra.trade.imports.ins.backend.filter.OrganisationHeaderFilter;
 import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotification;
 import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotification.AggregatedNotificationBuilder;
 
 class AggregatedNotificationControllerIT extends IntegrationBase {
 
+    private static final String ORGANISATION_A = "5900001";
+    private static final String ORGANISATION_B = "9999999";
     private static final Instant LAST_UPDATED = Instant.parse("2026-08-19T10:00:00Z");
 
     @Autowired
@@ -37,7 +40,7 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
         seed("agg-oldest", "GBN-AG-26-004", "DRAFT", "FR", "Poultry", "2026-07-15");
         seed("agg-deleted", "GBN-AG-26-003", "DELETED", "GB", "Domestic", "2026-08-25");
 
-        mockMvc.perform(get("/notifications"))
+        mockMvc.perform(get("/notifications").header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_A))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content", hasSize(3)))
             .andExpect(jsonPath("$.content[0].referenceNumber").value("GBN-AG-26-002"))
@@ -67,7 +70,9 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
         seed("agg-december", "GBN-AG-25-012", "SUBMITTED", "GB", "Domestic", "2025-12-31");
         seed("agg-autumn", "GBN-AG-25-001", "SUBMITTED", "GB", "Domestic", "2026-09-30");
 
-        mockMvc.perform(get("/notifications").param("sort", sort))
+        mockMvc.perform(get("/notifications")
+            .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_A)
+            .param("sort", sort))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content[*].referenceNumber").value(contains(first, second, third)));
     }
@@ -77,7 +82,9 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
         seed("agg-1", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-08-01");
         seed("agg-2", "GBN-AG-26-002", "DRAFT", "FR", "Live cattle", "2026-08-20");
 
-        mockMvc.perform(get("/notifications").param("referenceNumber", "GBN-AG-26-002"))
+        mockMvc.perform(get("/notifications")
+            .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_A)
+            .param("referenceNumber", "GBN-AG-26-002"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content", hasSize(1)))
             .andExpect(jsonPath("$.content[0].referenceNumber").value("GBN-AG-26-002"))
@@ -92,7 +99,9 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
     void findAll_referenceNumber_noMatch_returnsEmptyContent_not404() throws Exception {
         seed("agg-1", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-08-01");
 
-        mockMvc.perform(get("/notifications").param("referenceNumber", "GBN-AG-26-999"))
+        mockMvc.perform(get("/notifications")
+            .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_A)
+            .param("referenceNumber", "GBN-AG-26-999"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content", hasSize(0)))
             .andExpect(jsonPath("$.totalElements").value(0));
@@ -102,14 +111,16 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
     void findAll_referenceNumber_matchingDeletedNotification_isExcluded() throws Exception {
         seed("agg-deleted", "GBN-AG-26-003", "DELETED", "GB", "Domestic", "2026-08-25");
 
-        mockMvc.perform(get("/notifications").param("referenceNumber", "GBN-AG-26-003"))
+        mockMvc.perform(get("/notifications")
+            .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_A)
+            .param("referenceNumber", "GBN-AG-26-003"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content", hasSize(0)));
     }
 
     @Test
     void findAll_emptyStore_returnsEmptyContent() throws Exception {
-        mockMvc.perform(get("/notifications"))
+        mockMvc.perform(get("/notifications").header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_A))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content", hasSize(0)))
             .andExpect(jsonPath("$.totalElements").value(0));
@@ -117,8 +128,32 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
 
     @Test
     void findAll_pageIsZero_returnsBadRequest() throws Exception {
-        mockMvc.perform(get("/notifications").param("page", "0"))
+        mockMvc.perform(get("/notifications")
+            .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_A)
+            .param("page", "0"))
             .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void findAll_withoutOrganisationHeader_returnsBadRequest() throws Exception {
+        mockMvc.perform(get("/notifications"))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void findAll_otherOrganisation_doesNotSeeNotification() throws Exception {
+        seed("agg-1", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-08-01");
+
+        mockMvc.perform(get("/notifications")
+            .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_B))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content", hasSize(0)));
+
+        mockMvc.perform(get("/notifications")
+            .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_B)
+            .param("referenceNumber", "GBN-AG-26-001"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content", hasSize(0)));
     }
 
     @Test
@@ -126,7 +161,7 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
         seed("agg-canary", "GBN-AG-26-004", "SUBMITTED", "ES", "Domestic", "2026-08-01",
             notificationBuilder -> notificationBuilder.originCountrySubdivisionCode("ES-CN"));
 
-        mockMvc.perform(get("/notifications"))
+        mockMvc.perform(get("/notifications").header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_A))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content[0].originCountry").value("ES"))
             .andExpect(jsonPath("$.content[0].originCountrySubdivisionCode").value("ES-CN"));
@@ -142,6 +177,7 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
         AggregatedNotificationBuilder notificationBuilder = AggregatedNotification.builder()
             .aggregateId(aggregateId)
             .aggregateVersion(1L)
+            .organisationId(ORGANISATION_A)
             .referenceNumber(referenceNumber)
             .status(status)
             .originCountry(originCountry)
