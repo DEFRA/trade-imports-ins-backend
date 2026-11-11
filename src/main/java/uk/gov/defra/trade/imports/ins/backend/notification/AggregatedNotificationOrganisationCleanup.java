@@ -14,15 +14,17 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class AggregatedNotificationOrganisationCleanup implements ApplicationRunner {
 
+    private static final String ORGANISATION_ID = "organisationId";
+
     private final MongoTemplate mongoTemplate;
 
     @Override
     public void run(ApplicationArguments args) {
         Query missingOwner = Query.query(
             new Criteria().orOperator(
-                Criteria.where("organisationId").exists(false),
-                Criteria.where("organisationId").isNull(),
-                Criteria.where("organisationId").is("")));
+                Criteria.where(ORGANISATION_ID).exists(false),
+                Criteria.where(ORGANISATION_ID).isNull(),
+                Criteria.where(ORGANISATION_ID).is("")));
         long removed = mongoTemplate.remove(missingOwner, AggregatedNotification.class).getDeletedCount();
         if (removed > 0) {
             log.info("Removed {} aggregated notifications with no organisationId at startup", removed);
