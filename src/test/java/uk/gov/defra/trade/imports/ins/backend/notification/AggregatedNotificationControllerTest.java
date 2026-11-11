@@ -13,12 +13,14 @@ import java.util.Collections;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import uk.gov.defra.trade.imports.ins.backend.filter.OrganisationHeaderFilter;
 
 @WebMvcTest(AggregatedNotificationController.class)
+@Import(OrganisationHeaderFilter.class)
 class AggregatedNotificationControllerTest {
 
     private static final String ORGANISATION_ID = "5900001";
@@ -93,6 +95,15 @@ class AggregatedNotificationControllerTest {
             .andExpect(status().isOk());
 
         verify(queryService).findAll(1, null, "GBN-AG-26-001", ORGANISATION_ID);
+    }
+
+    @Test
+    void findAll_shouldReturnBadRequest_whenOrganisationHeaderIsMissing() throws Exception {
+        mockMvc.perform(get("/notifications")
+                .contentType(MediaType.APPLICATION_JSON))
+            .andExpect(status().isBadRequest());
+
+        verify(queryService, never()).findAll(eq(1), isNull(), isNull(), eq(ORGANISATION_ID));
     }
 
     @Test
