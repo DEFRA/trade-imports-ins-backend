@@ -40,7 +40,12 @@ public class AggregatedNotificationController {
         @RequestParam(required = false) String sort,
         @RequestParam(required = false) String referenceNumber,
         @RequestHeader(OrganisationHeaderFilter.ORGANISATION_ID_HEADER) String organisationId) {
-        log.debug("GET /notifications?page={}&sort={}&referenceNumber={}", page, sort, referenceNumber);
+        log.debug(
+            "GET /notifications?page={}&sort={}&referenceNumber={}&organisationId={}",
+            page,
+            sort,
+            referenceNumber,
+            organisationId);
         return queryService.findAll(page, sort, referenceNumber, organisationId);
     }
 }

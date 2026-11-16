@@ -52,6 +52,14 @@ sudo mongod --dbpath ~/mongodb-cdp
 In CDP environments a MongoDB instance is already set up
 and the credentials exposed as enviromment variables.
 
+### MongoDB indexes
+
+The `notifications` collection uses compound index `status_sort_fields` with `organisationId`
+as its leading field. If a shared database was created before organisation scoping (EUDPA-714),
+drop the old `status_sort_fields` index once before relying on the new definition — Spring Data
+creates the updated index on startup but does not remove a same-named index with a different key
+pattern.
+
 ### Inspect MongoDB
 
 To inspect the Database and Collections locally:

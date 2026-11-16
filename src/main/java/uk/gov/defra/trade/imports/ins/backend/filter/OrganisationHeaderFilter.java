@@ -16,6 +16,11 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+/**
+ * Requires {@link #ORGANISATION_ID_HEADER} on {@code GET /notifications}. The value is taken
+ * from the verified session by the INS frontend today; this service does not authenticate the
+ * caller — see workspace {@code docs/repos/architecture-overview.md} (INS auth gap).
+ */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 2)
 @RequiredArgsConstructor
