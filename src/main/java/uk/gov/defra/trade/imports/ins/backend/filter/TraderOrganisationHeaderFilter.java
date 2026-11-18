@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -15,16 +16,17 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import uk.gov.defra.trade.imports.ins.backend.support.ProblemDetailsFactory;
 
 /**
- * Requires {@link #ORGANISATION_ID_HEADER} on {@code GET /notifications}. The value is taken
- * from the verified session by the INS frontend today; this service does not authenticate the
- * caller — see workspace {@code docs/repos/architecture-overview.md} (INS auth gap).
+ * Requires {@link #ORGANISATION_ID_HEADER} on {@code GET /notifications}; missing or blank
+ * values are refused with HTTP 400 and an {@code application/problem+json} body.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 2)
+@Slf4j
 @RequiredArgsConstructor
-public class OrganisationHeaderFilter extends OncePerRequestFilter {
+public class TraderOrganisationHeaderFilter extends OncePerRequestFilter {
 
     public static final String ORGANISATION_ID_HEADER = "Trade-Imports-Organisation-Id";
     private static final URI TYPE_BAD_REQUEST =
@@ -37,7 +39,7 @@ public class OrganisationHeaderFilter extends OncePerRequestFilter {
         if (!"GET".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
-        return !"/notifications".equals(request.getServletPath());
+        return !"/notifications".equals(servletPath(request));
     }
 
     @Override
@@ -47,6 +49,11 @@ public class OrganisationHeaderFilter extends OncePerRequestFilter {
 
         String organisationId = request.getHeader(ORGANISATION_ID_HEADER);
         if (organisationId == null || organisationId.isBlank()) {
+            log.warn(
+                "Refused {} {}: header {} missing or blank",
+                request.getMethod(),
+                request.getRequestURI(),
+                ORGANISATION_ID_HEADER);
             rejectMissingHeader(response);
             return;
         }
@@ -54,12 +61,24 @@ public class OrganisationHeaderFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
+    static String servletPath(HttpServletRequest request) {
+        String servletPath = request.getServletPath();
+        if (servletPath != null && !servletPath.isEmpty()) {
+            return servletPath;
+        }
+        String uri = request.getRequestURI();
+        String contextPath = request.getContextPath();
+        if (contextPath != null && !contextPath.isEmpty() && uri.startsWith(contextPath)) {
+            return uri.substring(contextPath.length());
+        }
+        return uri != null ? uri : "";
+    }
+
     private void rejectMissingHeader(HttpServletResponse response) throws IOException {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-            HttpStatus.BAD_REQUEST,
-            "Missing required header " + ORGANISATION_ID_HEADER);
-        problem.setTitle("Bad Request");
-        problem.setType(TYPE_BAD_REQUEST);
+        String detail = "Missing required header " + ORGANISATION_ID_HEADER;
+        ProblemDetail problem =
+            ProblemDetailsFactory.problemDetail(
+                HttpStatus.BAD_REQUEST, TYPE_BAD_REQUEST, "Bad Request", detail);
         response.setStatus(HttpStatus.BAD_REQUEST.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         response.getOutputStream().write(objectMapper.writeValueAsBytes(problem));

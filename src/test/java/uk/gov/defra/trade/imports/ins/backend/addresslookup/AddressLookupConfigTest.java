@@ -40,7 +40,7 @@ class AddressLookupConfigTest {
         .withBean(ObjectMapper.class, ObjectMapper::new)
         .withBean(RestClient.Builder.class, RestClient::builder)
         .withConfiguration(AutoConfigurations.of(OAuth2ClientAutoConfiguration.class))
-        .withUserConfiguration(AddressLookupConfig.class, AddressLookupController.class, FederatedTokenConfig.class)
+        .withUserConfiguration(AddressLookupConfig.class, FederatedTokenConfig.class)
         .withPropertyValues(
             "aws.region=eu-west-2",
             // The registration keys the dev and local YAML carry — the token chain has no
@@ -67,7 +67,8 @@ class AddressLookupConfigTest {
     void beans_shouldLoad_whenProfileIsDev() {
         // Given
         // When
-        contextRunner.withPropertyValues("spring.profiles.active=dev")
+        contextRunner.withUserConfiguration(AddressLookupController.class)
+            .withPropertyValues("spring.profiles.active=dev")
             .run(context -> {
                 // Then
                 assertThat(context).hasSingleBean(AddressLookupController.class);
@@ -81,7 +82,8 @@ class AddressLookupConfigTest {
     void beans_shouldLoad_whenProfileIsLocal() {
         // Given
         // When
-        contextRunner.withPropertyValues("spring.profiles.active=local")
+        contextRunner.withUserConfiguration(AddressLookupController.class)
+            .withPropertyValues("spring.profiles.active=local")
             .run(context -> {
                 // Then
                 assertThat(context).hasSingleBean(AddressLookupController.class);
@@ -128,10 +130,13 @@ class AddressLookupConfigTest {
     void beans_shouldBeAbsent_whenNoProfileIsActive() {
         // Given
         // When
-        contextRunner.run(context -> {
-            // Then
-            assertAbsent(context);
-        });
+        new ApplicationContextRunner()
+            .withBean(ObjectMapper.class, ObjectMapper::new)
+            .withConfiguration(AutoConfigurations.of(OAuth2ClientAutoConfiguration.class))
+            .run(context -> {
+                // Then
+                assertAbsent(context);
+            });
     }
 
     /**

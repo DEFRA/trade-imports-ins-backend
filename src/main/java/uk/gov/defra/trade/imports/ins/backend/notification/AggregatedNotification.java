@@ -12,12 +12,15 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 @Document(collection = "notifications")
 @CompoundIndex(
-    name = "status_sort_fields",
+    name = AggregatedNotification.ORGANISATION_STATUS_SORT_INDEX,
     def = "{'organisationId': 1, 'status': 1, 'arrivalDate': -1, 'lastUpdated': -1}")
 @Data
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class AggregatedNotification {
+
+    public static final String ORGANISATION_ID_FIELD = "organisationId";
+    public static final String ORGANISATION_STATUS_SORT_INDEX = "organisation_status_sort_fields";
 
     @EqualsAndHashCode.Include
     @Id

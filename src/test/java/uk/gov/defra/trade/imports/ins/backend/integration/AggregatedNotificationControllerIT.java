@@ -15,14 +15,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import uk.gov.defra.trade.imports.ins.backend.filter.OrganisationHeaderFilter;
 import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotification;
 import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotification.AggregatedNotificationBuilder;
 
 class AggregatedNotificationControllerIT extends IntegrationBase {
 
-    private static final String ORGANISATION_A = "5900001";
-    private static final String ORGANISATION_B = "9999999";
+    private static final String OTHER_ORGANISATION_ID = "9999999";
     private static final Instant LAST_UPDATED = Instant.parse("2026-08-19T10:00:00Z");
 
     @Autowired
@@ -34,13 +32,17 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
     }
 
     @Test
-    void findAll_defaultSort_excludesDeleted_ordersByArrivalDateDesc() throws Exception {
-        seed("agg-earlier", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-08-01");
-        seed("agg-later", "GBN-AG-26-002", "DRAFT", "FR", "Live cattle", "2026-08-20");
-        seed("agg-oldest", "GBN-AG-26-004", "DRAFT", "FR", "Poultry", "2026-07-15");
-        seed("agg-deleted", "GBN-AG-26-003", "DELETED", "GB", "Domestic", "2026-08-25");
+    void findAll_shouldExcludeDeletedAndOrderByArrivalDateDesc_whenDefaultSort() throws Exception {
+        seedForOrganisation(
+            ORGANISATION_ID, "agg-earlier", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-08-01");
+        seedForOrganisation(
+            ORGANISATION_ID, "agg-later", "GBN-AG-26-002", "DRAFT", "FR", "Live cattle", "2026-08-20");
+        seedForOrganisation(
+            ORGANISATION_ID, "agg-oldest", "GBN-AG-26-004", "DRAFT", "FR", "Poultry", "2026-07-15");
+        seedForOrganisation(
+            ORGANISATION_ID, "agg-deleted", "GBN-AG-26-003", "DELETED", "GB", "Domestic", "2026-08-25");
 
-        mockMvc.perform(get("/notifications").header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_A))
+        mockMvc.perform(listNotificationsFor(ORGANISATION_ID))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content", hasSize(3)))
             .andExpect(jsonPath("$.content[0].referenceNumber").value("GBN-AG-26-002"))
@@ -64,27 +66,28 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
         "'arrivalDate,asc', GBN-AG-25-012, GBN-AG-26-001, GBN-AG-25-001",
         "'arrivalDate,desc', GBN-AG-25-001, GBN-AG-26-001, GBN-AG-25-012"
     })
-    void findAll_sortedByArrivalDate_ordersAcrossMonthAndYearBoundaries(
+    void findAll_shouldOrderAcrossMonthAndYearBoundaries_whenSortedByArrivalDate(
         String sort, String first, String second, String third) throws Exception {
-        seed("agg-january", "GBN-AG-26-001", "DRAFT", "FR", "Live cattle", "2026-01-02");
-        seed("agg-december", "GBN-AG-25-012", "SUBMITTED", "GB", "Domestic", "2025-12-31");
-        seed("agg-autumn", "GBN-AG-25-001", "SUBMITTED", "GB", "Domestic", "2026-09-30");
+        seedForOrganisation(
+            ORGANISATION_ID, "agg-january", "GBN-AG-26-001", "DRAFT", "FR", "Live cattle", "2026-01-02");
+        seedForOrganisation(
+            ORGANISATION_ID, "agg-december", "GBN-AG-25-012", "SUBMITTED", "GB", "Domestic", "2025-12-31");
+        seedForOrganisation(
+            ORGANISATION_ID, "agg-autumn", "GBN-AG-25-001", "SUBMITTED", "GB", "Domestic", "2026-09-30");
 
-        mockMvc.perform(get("/notifications")
-            .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_A)
-            .param("sort", sort))
+        mockMvc.perform(listNotificationsFor(ORGANISATION_ID).param("sort", sort))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content[*].referenceNumber").value(contains(first, second, third)));
     }
 
     @Test
-    void findAll_referenceNumber_exactMatch_returnsOnlyThatNotification() throws Exception {
-        seed("agg-1", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-08-01");
-        seed("agg-2", "GBN-AG-26-002", "DRAFT", "FR", "Live cattle", "2026-08-20");
+    void findAll_shouldReturnOnlyMatchingReference_whenReferenceNumberGiven() throws Exception {
+        seedForOrganisation(
+            ORGANISATION_ID, "agg-1", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-08-01");
+        seedForOrganisation(
+            ORGANISATION_ID, "agg-2", "GBN-AG-26-002", "DRAFT", "FR", "Live cattle", "2026-08-20");
 
-        mockMvc.perform(get("/notifications")
-            .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_A)
-            .param("referenceNumber", "GBN-AG-26-002"))
+        mockMvc.perform(listNotificationsFor(ORGANISATION_ID).param("referenceNumber", "GBN-AG-26-002"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content", hasSize(1)))
             .andExpect(jsonPath("$.content[0].referenceNumber").value("GBN-AG-26-002"))
@@ -96,88 +99,119 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
     }
 
     @Test
-    void findAll_referenceNumber_noMatch_returnsEmptyContent_not404() throws Exception {
-        seed("agg-1", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-08-01");
+    void findAll_shouldReturnEmptyContent_whenReferenceNotFound() throws Exception {
+        seedForOrganisation(
+            ORGANISATION_ID, "agg-1", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-08-01");
 
-        mockMvc.perform(get("/notifications")
-            .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_A)
-            .param("referenceNumber", "GBN-AG-26-999"))
+        mockMvc.perform(listNotificationsFor(ORGANISATION_ID).param("referenceNumber", "GBN-AG-26-999"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content", hasSize(0)))
             .andExpect(jsonPath("$.totalElements").value(0));
     }
 
     @Test
-    void findAll_referenceNumber_matchingDeletedNotification_isExcluded() throws Exception {
-        seed("agg-deleted", "GBN-AG-26-003", "DELETED", "GB", "Domestic", "2026-08-25");
+    void findAll_shouldExcludeDeleted_whenReferenceMatchesDeletedNotification() throws Exception {
+        seedForOrganisation(
+            ORGANISATION_ID, "agg-deleted", "GBN-AG-26-003", "DELETED", "GB", "Domestic", "2026-08-25");
 
-        mockMvc.perform(get("/notifications")
-            .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_A)
-            .param("referenceNumber", "GBN-AG-26-003"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.content", hasSize(0)));
-    }
-
-    @Test
-    void findAll_emptyStore_returnsEmptyContent() throws Exception {
-        mockMvc.perform(get("/notifications").header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_A))
+        mockMvc.perform(listNotificationsFor(ORGANISATION_ID).param("referenceNumber", "GBN-AG-26-003"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content", hasSize(0)))
             .andExpect(jsonPath("$.totalElements").value(0));
     }
 
     @Test
-    void findAll_pageIsZero_returnsBadRequest() throws Exception {
-        mockMvc.perform(get("/notifications")
-            .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_A)
-            .param("page", "0"))
+    void findAll_shouldReturnEmptyContent_whenStoreIsEmpty() throws Exception {
+        mockMvc.perform(listNotificationsFor(ORGANISATION_ID))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content", hasSize(0)))
+            .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    @Test
+    void findAll_shouldReturnBadRequest_whenPageIsZero() throws Exception {
+        mockMvc.perform(listNotificationsFor(ORGANISATION_ID).param("page", "0"))
             .andExpect(status().isBadRequest());
     }
 
     @Test
-    void findAll_withoutOrganisationHeader_returnsBadRequest() throws Exception {
+    void findAll_shouldReturnBadRequest_whenOrganisationHeaderMissing() throws Exception {
         mockMvc.perform(get("/notifications"))
             .andExpect(status().isBadRequest());
     }
 
     @Test
-    void findAll_otherOrganisation_doesNotSeeNotification() throws Exception {
-        seed("agg-1", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-08-01");
+    void findAll_shouldReturnEmptyList_whenCallerOrgDoesNotOwnStoredNotification() throws Exception {
+        seedForOrganisation(
+            ORGANISATION_ID, "agg-1", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-08-01");
 
-        mockMvc.perform(get("/notifications")
-            .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_B))
+        mockMvc.perform(listNotificationsFor(OTHER_ORGANISATION_ID))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.content", hasSize(0)));
-
-        mockMvc.perform(get("/notifications")
-            .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_B)
-            .param("referenceNumber", "GBN-AG-26-001"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.content", hasSize(0)));
+            .andExpect(jsonPath("$.content", hasSize(0)))
+            .andExpect(jsonPath("$.totalElements").value(0));
     }
 
     @Test
-    void findAll_returnsTheOriginCountrySubdivisionCode() throws Exception {
-        seed("agg-canary", "GBN-AG-26-004", "SUBMITTED", "ES", "Domestic", "2026-08-01",
+    void findAll_shouldReturnEmptyReferenceMatch_whenCallerOrgDoesNotOwnStoredNotification() throws Exception {
+        seedForOrganisation(
+            ORGANISATION_ID, "agg-1", "GBN-AG-26-001", "SUBMITTED", "GB", "Domestic", "2026-08-01");
+
+        mockMvc.perform(listNotificationsFor(OTHER_ORGANISATION_ID).param("referenceNumber", "GBN-AG-26-001"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content", hasSize(0)))
+            .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    @Test
+    void findAll_shouldReturnOriginCountrySubdivisionCode_whenStoredOnNotification() throws Exception {
+        seedForOrganisation(
+            ORGANISATION_ID,
+            "agg-canary",
+            "GBN-AG-26-004",
+            "SUBMITTED",
+            "ES",
+            "Domestic",
+            "2026-08-01",
             notificationBuilder -> notificationBuilder.originCountrySubdivisionCode("ES-CN"));
 
-        mockMvc.perform(get("/notifications").header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_A))
+        mockMvc.perform(listNotificationsFor(ORGANISATION_ID))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content[0].originCountry").value("ES"))
             .andExpect(jsonPath("$.content[0].originCountrySubdivisionCode").value("ES-CN"));
     }
 
-    private void seed(String aggregateId, String referenceNumber, String status, String originCountry,
-            String commodity, String arrivalDate) {
-        seed(aggregateId, referenceNumber, status, originCountry, commodity, arrivalDate, UnaryOperator.identity());
+    private void seedForOrganisation(
+        String organisationId,
+        String aggregateId,
+        String referenceNumber,
+        String status,
+        String originCountry,
+        String commodity,
+        String arrivalDate) {
+        seedForOrganisation(
+            organisationId,
+            aggregateId,
+            referenceNumber,
+            status,
+            originCountry,
+            commodity,
+            arrivalDate,
+            UnaryOperator.identity());
     }
 
-    private void seed(String aggregateId, String referenceNumber, String status, String originCountry,
-            String commodity, String arrivalDate, UnaryOperator<AggregatedNotificationBuilder> customise) {
+    private void seedForOrganisation(
+        String organisationId,
+        String aggregateId,
+        String referenceNumber,
+        String status,
+        String originCountry,
+        String commodity,
+        String arrivalDate,
+        UnaryOperator<AggregatedNotificationBuilder> customise) {
         AggregatedNotificationBuilder notificationBuilder = AggregatedNotification.builder()
             .aggregateId(aggregateId)
             .aggregateVersion(1L)
-            .organisationId(ORGANISATION_A)
+            .organisationId(organisationId)
             .referenceNumber(referenceNumber)
             .status(status)
             .originCountry(originCountry)

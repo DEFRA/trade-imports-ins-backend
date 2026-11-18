@@ -15,11 +15,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotification;
 import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotificationRepository;
+import uk.gov.defra.trade.imports.ins.backend.testsupport.NotificationEventEnvelope;
 
 class NotificationSqsListenerIT extends IntegrationBase {
 
     private static final String AGGREGATE_ID = "Imports.Notification.GBN-AG.GBN-AG-26-001";
-    private static final String ORGANISATION_ID = "5900001";
 
     @Autowired
     private AggregatedNotificationRepository repository;
@@ -45,6 +45,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
             assertThat(doc.get().getOriginCountry()).isEqualTo("GB");
             assertThat(doc.get().getCommodity()).isEqualTo("Dog");
             assertThat(doc.get().getAggregateVersion()).isEqualTo(1L);
+            assertThat(doc.get().getOrganisationId()).isEqualTo(ORGANISATION_ID);
             assertThat(doc.get().getArrivalDate()).isEqualTo(LocalDate.of(2026, 8, 20));
         });
     }
@@ -64,30 +65,12 @@ class NotificationSqsListenerIT extends IntegrationBase {
 
     @Test
     void notificationFromACountrySubdivision_storesTheSubdivisionCode() {
-        String body = """
-            {
-              "aggregateId": "%s",
-              "aggregateVersion": 1,
-              "organisationId": "%s",
-              "eventType": "uk.gov.defra.imports.notification.NotificationSubmitted",
-              "data": {
-                "exchangedDocument": { "identifier": "GBN-AG-26-001", "notificationStatusCode": "SUBMITTED" },
-                "specifiedConsignment": {
-                  "originCountry": {
-                    "code": { "value": "ES" },
-                    "subordinateTradeCountrySubDivision": [
-                      {
-                        "identifier": "ES-CN",
-                        "urlId": "https://refdata.tbc.defra.gov.uk/country_subdivisions",
-                        "functionTypeCode": { "content": "106" }
-                      }
-                    ],
-                    "regionOfOriginCode": "ES-12345"
-                  }
-                }
-              }
-            }
-            """.formatted(AGGREGATE_ID, ORGANISATION_ID);
+        String body = NotificationEventEnvelope.withData(
+            AGGREGATE_ID,
+            1,
+            ORGANISATION_ID,
+            NotificationEventEnvelope.NOTIFICATION_SUBMITTED,
+            SUBDIVISION_ORIGIN_DATA);
 
         sendToSqs(body, AGGREGATE_ID);
 
@@ -101,24 +84,23 @@ class NotificationSqsListenerIT extends IntegrationBase {
 
     @Test
     void amendmentToAWholeCountryOrigin_clearsTheSubdivisionCode() {
-        String subdivisionOrigin = """
+        String subdivisionOrigin = NotificationEventEnvelope.withData(
+            AGGREGATE_ID,
+            1,
+            ORGANISATION_ID,
+            NotificationEventEnvelope.NOTIFICATION_SUBMITTED,
+            """
             {
-              "aggregateId": "%s",
-              "aggregateVersion": 1,
-              "organisationId": "%s",
-              "eventType": "uk.gov.defra.imports.notification.NotificationSubmitted",
-              "data": {
-                "specifiedConsignment": {
-                  "originCountry": {
-                    "code": { "value": "ES" },
-                    "subordinateTradeCountrySubDivision": [
-                      { "identifier": "ES-CN", "functionTypeCode": { "content": "106" } }
-                    ]
-                  }
+              "specifiedConsignment": {
+                "originCountry": {
+                  "code": { "value": "ES" },
+                  "subordinateTradeCountrySubDivision": [
+                    { "identifier": "ES-CN", "functionTypeCode": { "content": "106" } }
+                  ]
                 }
               }
             }
-            """.formatted(AGGREGATE_ID, ORGANISATION_ID);
+            """);
         sendToSqs(subdivisionOrigin, AGGREGATE_ID);
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
             assertThat(repository.findById(AGGREGATE_ID))
@@ -135,17 +117,19 @@ class NotificationSqsListenerIT extends IntegrationBase {
 
     @Test
     void deliveringSameEventTwice_leavesTheStoredDocumentUnchanged() {
-        String eventWithNoIssueDateTime = """
+        String eventWithNoIssueDateTime = NotificationEventEnvelope.withData(
+            AGGREGATE_ID,
+            1,
+            ORGANISATION_ID,
+            NotificationEventEnvelope.NOTIFICATION_EDITED,
+            """
             {
-              "aggregateId": "%s",
-              "aggregateVersion": 1,
-              "organisationId": "%s",
-              "eventType": "uk.gov.defra.imports.notification.NotificationEdited",
-              "data": {
-                "exchangedDocument": { "identifier": "GBN-AG-26-001", "notificationStatusCode": "DRAFT" }
+              "exchangedDocument": {
+                "identifier": "GBN-AG-26-001",
+                "notificationStatusCode": "DRAFT"
               }
             }
-            """.formatted(AGGREGATE_ID, ORGANISATION_ID);
+            """);
         sendToSqs(eventWithNoIssueDateTime, AGGREGATE_ID);
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
             assertThat(storedDocument()).isNotNull());
@@ -188,9 +172,8 @@ class NotificationSqsListenerIT extends IntegrationBase {
 
     @Test
     void unknownEventType_isDeletedWithoutBeingStored() {
-        String body = """
-            {"aggregateId":"%s","aggregateVersion":1,"eventType":"uk.gov.defra.imports.notification.UnknownEvent"}
-            """.formatted(AGGREGATE_ID);
+        String body = NotificationEventEnvelope.withoutOrganisation(
+            AGGREGATE_ID, 1, "uk.gov.defra.imports.notification.UnknownEvent");
 
         sendToSqs(body, AGGREGATE_ID);
 
@@ -213,53 +196,75 @@ class NotificationSqsListenerIT extends IntegrationBase {
     }
 
     private static String notificationEdited(long version) {
-        return """
-            {
-              "aggregateId": "%s",
-              "aggregateVersion": %d,
-              "organisationId": "%s",
-              "eventType": "uk.gov.defra.imports.notification.NotificationEdited",
-              "data": {
-                "exchangedDocument": {
-                  "identifier": "GBN-AG-26-001",
-                  "notificationStatusCode": "DRAFT",
-                  "issueDateTime": "2026-08-19T10:00:00Z"
-                },
-                "specifiedConsignment": {
-                  "originCountry": { "code": { "value": "GB" } },
-                  "mainCarriageLogisticsTransportMovement": [
-                    { "arrivalEvent": [{ "scheduledOccurrenceDateTime": "2026-08-20T00:00:00Z" }] }
-                  ],
-                  "includedConsignmentItem": [
-                    { "includedTradeLineItem": [
-                        { "applicableClassification": [{ "classCode": { "value": "01059900" } }],
-                          "commonName": "Dog" }
-                    ]}
-                  ]
-                }
-              }
-            }
-            """.formatted(NotificationSqsListenerIT.AGGREGATE_ID, version, ORGANISATION_ID);
+        return NotificationEventEnvelope.withData(
+            AGGREGATE_ID,
+            version,
+            ORGANISATION_ID,
+            NotificationEventEnvelope.NOTIFICATION_EDITED,
+            NOTIFICATION_EDITED_DATA);
     }
 
     private static String notificationSubmittedWithNoCommodity() {
-        return """
+        return NotificationEventEnvelope.withData(
+            AGGREGATE_ID,
+            2,
+            ORGANISATION_ID,
+            NotificationEventEnvelope.NOTIFICATION_SUBMITTED,
+            """
             {
-              "aggregateId": "%s",
-              "aggregateVersion": %d,
-              "organisationId": "%s",
-              "eventType": "uk.gov.defra.imports.notification.NotificationSubmitted",
-              "data": {
-                "exchangedDocument": {
-                  "identifier": "GBN-AG-26-001",
-                  "notificationStatusCode": "SUBMITTED",
-                  "issueDateTime": "2026-08-19T11:00:00Z"
-                },
-                "specifiedConsignment": {
-                  "originCountry": { "code": { "value": "GB" } }
-                }
+              "exchangedDocument": {
+                "identifier": "GBN-AG-26-001",
+                "notificationStatusCode": "SUBMITTED",
+                "issueDateTime": "2026-08-19T11:00:00Z"
+              },
+              "specifiedConsignment": {
+                "originCountry": { "code": { "value": "GB" } }
               }
             }
-            """.formatted(NotificationSqsListenerIT.AGGREGATE_ID, (long) 2, ORGANISATION_ID);
+            """);
     }
+
+    private static final String NOTIFICATION_EDITED_DATA = """
+        {
+          "exchangedDocument": {
+            "identifier": "GBN-AG-26-001",
+            "notificationStatusCode": "DRAFT",
+            "issueDateTime": "2026-08-19T10:00:00Z"
+          },
+          "specifiedConsignment": {
+            "originCountry": { "code": { "value": "GB" } },
+            "mainCarriageLogisticsTransportMovement": [
+              { "arrivalEvent": [{ "scheduledOccurrenceDateTime": "2026-08-20T00:00:00Z" }] }
+            ],
+            "includedConsignmentItem": [
+              { "includedTradeLineItem": [
+                  { "applicableClassification": [{ "classCode": { "value": "01059900" } }],
+                    "commonName": "Dog" }
+              ]}
+            ]
+          }
+        }
+        """;
+
+    private static final String SUBDIVISION_ORIGIN_DATA = """
+        {
+          "exchangedDocument": {
+            "identifier": "GBN-AG-26-001",
+            "notificationStatusCode": "SUBMITTED"
+          },
+          "specifiedConsignment": {
+            "originCountry": {
+              "code": { "value": "ES" },
+              "subordinateTradeCountrySubDivision": [
+                {
+                  "identifier": "ES-CN",
+                  "urlId": "https://refdata.tbc.defra.gov.uk/country_subdivisions",
+                  "functionTypeCode": { "content": "106" }
+                }
+              ],
+              "regionOfOriginCode": "ES-12345"
+            }
+          }
+        }
+        """;
 }

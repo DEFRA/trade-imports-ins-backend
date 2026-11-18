@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -17,10 +18,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import uk.gov.defra.trade.imports.ins.backend.filter.OrganisationHeaderFilter;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import uk.gov.defra.trade.imports.ins.backend.filter.TraderOrganisationHeaderFilter;
 
 @WebMvcTest(AggregatedNotificationController.class)
-@Import(OrganisationHeaderFilter.class)
+@Import(TraderOrganisationHeaderFilter.class)
 class AggregatedNotificationControllerTest {
 
     private static final String ORGANISATION_ID = "5900001";
@@ -31,14 +33,12 @@ class AggregatedNotificationControllerTest {
     @MockitoBean
     private AggregatedNotificationQueryService queryService;
 
-  @Test
+    @Test
     void findAll_shouldReturnPageOfNotifications_withDefaultParams() throws Exception {
-        when(queryService.findAll(1, null, null, ORGANISATION_ID)).thenReturn(
+        when(queryService.findOrganisationPage(1, null, null, ORGANISATION_ID)).thenReturn(
             new AggregatedNotificationPageResponse(Collections.emptyList(), 1, 25, 0, 0, 0));
 
-        mockMvc.perform(get("/notifications")
-                .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_ID)
-                .contentType(MediaType.APPLICATION_JSON))
+        mockMvc.perform(listNotificationsRequest())
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content").isArray())
             .andExpect(jsonPath("$.content").isEmpty())
@@ -46,80 +46,73 @@ class AggregatedNotificationControllerTest {
             .andExpect(jsonPath("$.size").value(25))
             .andExpect(jsonPath("$.totalElements").value(0));
 
-        verify(queryService).findAll(1, null, null, ORGANISATION_ID);
+        verify(queryService).findOrganisationPage(1, null, null, ORGANISATION_ID);
     }
 
     @Test
     void findAll_shouldReturn400_whenPageIsZero() throws Exception {
-        mockMvc.perform(get("/notifications")
-                .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_ID)
-                .param("page", "0")
-                .contentType(MediaType.APPLICATION_JSON))
+        mockMvc.perform(listNotificationsRequest().param("page", "0"))
             .andExpect(status().isBadRequest());
 
-        verify(queryService, never()).findAll(eq(0), isNull(), isNull(), eq(ORGANISATION_ID));
+        verifyNoInteractions(queryService);
     }
 
     @Test
     void findAll_shouldReturn400_whenPageIsNegative() throws Exception {
-        mockMvc.perform(get("/notifications")
-                .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_ID)
-                .param("page", "-1")
-                .contentType(MediaType.APPLICATION_JSON))
+        mockMvc.perform(listNotificationsRequest().param("page", "-1"))
             .andExpect(status().isBadRequest());
     }
 
     @Test
     void findAll_shouldPassSortParamToService() throws Exception {
-        when(queryService.findAll(1, "lastUpdated,asc", null, ORGANISATION_ID)).thenReturn(
+        when(queryService.findOrganisationPage(1, "lastUpdated,asc", null, ORGANISATION_ID)).thenReturn(
             new AggregatedNotificationPageResponse(Collections.emptyList(), 1, 25, 0, 0, 0));
 
-        mockMvc.perform(get("/notifications")
-                .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_ID)
-                .param("sort", "lastUpdated,asc")
-                .contentType(MediaType.APPLICATION_JSON))
+        mockMvc.perform(listNotificationsRequest().param("sort", "lastUpdated,asc"))
             .andExpect(status().isOk());
 
-        verify(queryService).findAll(1, "lastUpdated,asc", null, ORGANISATION_ID);
+        verify(queryService).findOrganisationPage(1, "lastUpdated,asc", null, ORGANISATION_ID);
     }
 
     @Test
     void findAll_shouldPassReferenceNumberParamToService() throws Exception {
-        when(queryService.findAll(1, null, "GBN-AG-26-001", ORGANISATION_ID)).thenReturn(
+        when(queryService.findOrganisationPage(1, null, "GBN-AG-26-001", ORGANISATION_ID)).thenReturn(
             new AggregatedNotificationPageResponse(Collections.emptyList(), 1, 25, 0, 0, 0));
 
-        mockMvc.perform(get("/notifications")
-                .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_ID)
-                .param("referenceNumber", "GBN-AG-26-001")
-                .contentType(MediaType.APPLICATION_JSON))
+        mockMvc.perform(listNotificationsRequest().param("referenceNumber", "GBN-AG-26-001"))
             .andExpect(status().isOk());
 
-        verify(queryService).findAll(1, null, "GBN-AG-26-001", ORGANISATION_ID);
+        verify(queryService).findOrganisationPage(1, null, "GBN-AG-26-001", ORGANISATION_ID);
     }
 
     @Test
     void findAll_shouldReturnBadRequest_whenOrganisationHeaderIsMissing() throws Exception {
         mockMvc.perform(get("/notifications")
                 .contentType(MediaType.APPLICATION_JSON))
-            .andExpect(status().isBadRequest());
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(jsonPath("$.title").value("Bad Request"));
 
-        verify(queryService, never()).findAll(eq(1), isNull(), isNull(), eq(ORGANISATION_ID));
+        verifyNoInteractions(queryService);
     }
 
     @Test
     void findAll_shouldPassPageParamToService() throws Exception {
-        when(queryService.findAll(2, null, null, ORGANISATION_ID)).thenReturn(
+        when(queryService.findOrganisationPage(2, null, null, ORGANISATION_ID)).thenReturn(
             new AggregatedNotificationPageResponse(Collections.emptyList(), 2, 25, 0, 120, 5));
 
-        mockMvc.perform(get("/notifications")
-                .header(OrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_ID)
-                .param("page", "2")
-                .contentType(MediaType.APPLICATION_JSON))
+        mockMvc.perform(listNotificationsRequest().param("page", "2"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.page").value(2))
             .andExpect(jsonPath("$.totalElements").value(120))
             .andExpect(jsonPath("$.totalPages").value(5));
 
-        verify(queryService).findAll(2, null, null, ORGANISATION_ID);
+        verify(queryService).findOrganisationPage(2, null, null, ORGANISATION_ID);
+    }
+
+    private static MockHttpServletRequestBuilder listNotificationsRequest() {
+        return get("/notifications")
+            .header(TraderOrganisationHeaderFilter.ORGANISATION_ID_HEADER, ORGANISATION_ID)
+            .contentType(MediaType.APPLICATION_JSON);
     }
 }

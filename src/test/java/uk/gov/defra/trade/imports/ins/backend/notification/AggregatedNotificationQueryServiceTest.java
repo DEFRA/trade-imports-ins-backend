@@ -37,17 +37,12 @@ class AggregatedNotificationQueryServiceTest {
     }
 
     @Test
-    void findAll_withoutReferenceNumber_queriesRepositoryExcludingDeleted() {
-        AggregatedNotification notification = AggregatedNotification.builder()
-            .aggregateId("agg-1")
-            .referenceNumber("GBN-AG-26-001")
-            .status("SUBMITTED")
-            .build();
-        Pageable expectedPageable = PageRequest.of(0, PAGE_SIZE);
+    void findOrganisationPage_shouldQueryByOrganisationExcludingDeleted_whenNoReferenceNumber() {
+        AggregatedNotification notification = submittedNotification();
         when(repository.findAllByOrganisationIdAndStatusNot(eq(ORGANISATION_ID), eq("DELETED"), any()))
-            .thenReturn(new PageImpl<>(List.of(notification), expectedPageable, 1));
+            .thenReturn(new PageImpl<>(List.of(notification), PageRequest.of(0, PAGE_SIZE), 1));
 
-        AggregatedNotificationPageResponse response = service.findAll(1, null, null, ORGANISATION_ID);
+        AggregatedNotificationPageResponse response = service.findOrganisationPage(1, null, null, ORGANISATION_ID);
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(repository).findAllByOrganisationIdAndStatusNot(
@@ -61,11 +56,11 @@ class AggregatedNotificationQueryServiceTest {
     }
 
     @Test
-    void findAll_secondPage_isZeroIndexedAgainstRepository() {
+    void findOrganisationPage_shouldUseZeroBasedRepositoryPage_whenSecondPageRequested() {
         when(repository.findAllByOrganisationIdAndStatusNot(eq(ORGANISATION_ID), eq("DELETED"), any()))
             .thenReturn(Page.empty());
 
-        service.findAll(2, null, null, ORGANISATION_ID);
+        service.findOrganisationPage(2, null, null, ORGANISATION_ID);
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(repository).findAllByOrganisationIdAndStatusNot(
@@ -74,18 +69,14 @@ class AggregatedNotificationQueryServiceTest {
     }
 
     @Test
-    void findAll_withReferenceNumber_returnsSingleMatch_notFullList() {
-        AggregatedNotification notification = AggregatedNotification.builder()
-            .aggregateId("agg-1")
-            .referenceNumber("GBN-AG-26-001")
-            .status("SUBMITTED")
-            .build();
+    void findOrganisationPage_shouldReturnSingleMatchForOrganisation_whenReferenceNumberGiven() {
+        AggregatedNotification notification = submittedNotification();
         when(repository.findByReferenceNumberAndOrganisationIdAndStatusNot(
                 "GBN-AG-26-001", ORGANISATION_ID, "DELETED"))
             .thenReturn(Optional.of(notification));
 
         AggregatedNotificationPageResponse response =
-            service.findAll(1, null, "GBN-AG-26-001", ORGANISATION_ID);
+            service.findOrganisationPage(1, null, "GBN-AG-26-001", ORGANISATION_ID);
 
         assertThat(response.content()).containsExactly(notification);
         assertThat(response.totalElements()).isEqualTo(1L);
@@ -93,31 +84,27 @@ class AggregatedNotificationQueryServiceTest {
     }
 
     @Test
-    void findAll_referenceNumberWithNoMatch_returnsEmptyPage_notAnError() {
+    void findOrganisationPage_shouldReturnEmptyPage_whenReferenceNotFoundForOrganisation() {
         when(repository.findByReferenceNumberAndOrganisationIdAndStatusNot(
                 "GBN-AG-26-999", ORGANISATION_ID, "DELETED"))
             .thenReturn(Optional.empty());
 
         AggregatedNotificationPageResponse response =
-            service.findAll(1, null, "GBN-AG-26-999", ORGANISATION_ID);
+            service.findOrganisationPage(1, null, "GBN-AG-26-999", ORGANISATION_ID);
 
         assertThat(response.content()).isEmpty();
         assertThat(response.totalElements()).isZero();
     }
 
     @Test
-    void findAll_withReferenceNumber_reportsFirstPage_regardlessOfRequestedPage() {
-        AggregatedNotification notification = AggregatedNotification.builder()
-            .aggregateId("agg-1")
-            .referenceNumber("GBN-AG-26-001")
-            .status("SUBMITTED")
-            .build();
+    void findOrganisationPage_shouldReportFirstPage_whenReferenceMatchRegardlessOfRequestedPage() {
+        AggregatedNotification notification = submittedNotification();
         when(repository.findByReferenceNumberAndOrganisationIdAndStatusNot(
                 "GBN-AG-26-001", ORGANISATION_ID, "DELETED"))
             .thenReturn(Optional.of(notification));
 
         AggregatedNotificationPageResponse response =
-            service.findAll(3, null, "GBN-AG-26-001", ORGANISATION_ID);
+            service.findOrganisationPage(3, null, "GBN-AG-26-001", ORGANISATION_ID);
 
         assertThat(response.content()).containsExactly(notification);
         assertThat(response.page()).isEqualTo(1);
@@ -126,25 +113,33 @@ class AggregatedNotificationQueryServiceTest {
     }
 
     @Test
-    void findAll_referenceNumberIsTrimmedBeforeLookup() {
+    void findOrganisationPage_shouldTrimReferenceBeforeOrganisationLookup_whenReferenceHasPadding() {
         when(repository.findByReferenceNumberAndOrganisationIdAndStatusNot(
                 "GBN-AG-26-001", ORGANISATION_ID, "DELETED"))
             .thenReturn(Optional.empty());
 
-        service.findAll(1, null, "  GBN-AG-26-001  ", ORGANISATION_ID);
+        service.findOrganisationPage(1, null, "  GBN-AG-26-001  ", ORGANISATION_ID);
 
         verify(repository).findByReferenceNumberAndOrganisationIdAndStatusNot(
             "GBN-AG-26-001", ORGANISATION_ID, "DELETED");
     }
 
     @Test
-    void findAll_blankReferenceNumber_isTreatedAsAbsent() {
+    void findOrganisationPage_shouldListOrganisation_whenReferenceNumberIsBlank() {
         when(repository.findAllByOrganisationIdAndStatusNot(eq(ORGANISATION_ID), eq("DELETED"), any()))
             .thenReturn(Page.empty());
 
-        service.findAll(1, null, "   ", ORGANISATION_ID);
+        service.findOrganisationPage(1, null, "   ", ORGANISATION_ID);
 
         verify(repository).findAllByOrganisationIdAndStatusNot(eq(ORGANISATION_ID), eq("DELETED"), any());
         verify(repository, never()).findByReferenceNumberAndOrganisationIdAndStatusNot(any(), any(), any());
+    }
+
+    private static AggregatedNotification submittedNotification() {
+        return AggregatedNotification.builder()
+            .aggregateId("agg-1")
+            .referenceNumber("GBN-AG-26-001")
+            .status("SUBMITTED")
+            .build();
     }
 }

@@ -28,7 +28,7 @@ public class AggregatedNotificationQueryService {
         this.listPageSize = listPageSize;
     }
 
-    public AggregatedNotificationPageResponse findAll(
+    public AggregatedNotificationPageResponse findOrganisationPage(
         int page, String sort, String referenceNumber, String organisationId) {
         Pageable pageable = PageRequest.of(page - 1, listPageSize, AggregatedNotificationSort.toSort(sort));
 
@@ -41,13 +41,8 @@ public class AggregatedNotificationQueryService {
             Optional<AggregatedNotification> match =
                 repository.findByReferenceNumberAndOrganisationIdAndStatusNot(
                     trimmedReference, organisationId, DELETED_STATUS);
-            // Always report the singleton match as page 1 of 1, regardless of the requested page,
-            // so page/totalPages stay consistent with the single-result content.
-            Pageable firstPage = PageRequest.of(0, listPageSize, pageable.getSort());
-            Page<AggregatedNotification> matched = match
-                .<Page<AggregatedNotification>>map(notification -> new PageImpl<>(List.of(notification), firstPage, 1))
-                .orElseGet(() -> Page.empty(firstPage));
-            return AggregatedNotificationPageResponse.from(matched);
+            return AggregatedNotificationPageResponse.from(
+                asSingleFirstPage(match, pageable));
         }
 
         log.debug(
@@ -59,5 +54,14 @@ public class AggregatedNotificationQueryService {
         Page<AggregatedNotification> result =
             repository.findAllByOrganisationIdAndStatusNot(organisationId, DELETED_STATUS, pageable);
         return AggregatedNotificationPageResponse.from(result);
+    }
+
+    private static Page<AggregatedNotification> asSingleFirstPage(
+        Optional<AggregatedNotification> match, Pageable pageable) {
+        Pageable firstPage = PageRequest.of(0, pageable.getPageSize(), pageable.getSort());
+        return match
+            .<Page<AggregatedNotification>>map(
+                notification -> new PageImpl<>(List.of(notification), firstPage, 1))
+            .orElseGet(() -> Page.empty(firstPage));
     }
 }

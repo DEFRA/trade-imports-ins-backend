@@ -20,7 +20,7 @@ public class NotificationUpsertService {
 
   private static final String AGGREGATE_VERSION = "aggregateVersion";
   private static final String ORIGIN_COUNTRY = "originCountry";
-  private static final String ORGANISATION_ID = "organisationId";
+  private static final String ORGANISATION_ID = AggregatedNotification.ORGANISATION_ID_FIELD;
   private static final String LOCATION_FUNCTION_SUBDIVISION_OF_ORIGIN = "106";
   private final MongoTemplate mongoTemplate;
 

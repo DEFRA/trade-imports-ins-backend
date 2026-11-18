@@ -25,6 +25,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import uk.gov.defra.trade.imports.ins.backend.testsupport.JvmDefaultZoneExtension;
+import uk.gov.defra.trade.imports.ins.backend.testsupport.NotificationEventEnvelope;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationUpsertServiceTest {
@@ -102,18 +103,18 @@ class NotificationUpsertServiceTest {
 
     @Test
     void upsert_shouldRejectAsNonRetryable_whenIssueDateTimeIsNotADate() throws Exception {
-        JsonNode body = mapper.readTree("""
+        JsonNode body = mapper.readTree(NotificationEventEnvelope.withData(
+            NotificationEventEnvelope.DEFAULT_AGGREGATE_ID,
+            1,
+            ORGANISATION_ID,
+            NotificationEventEnvelope.NOTIFICATION_EDITED,
+            """
             {
-              "aggregateId": "agg-1",
-              "aggregateVersion": 1,
-              "organisationId": "%s",
-              "data": {
-                "exchangedDocument": {
-                  "issueDateTime": "not-a-date"
-                }
+              "exchangedDocument": {
+                "issueDateTime": "not-a-date"
               }
             }
-            """.formatted(ORGANISATION_ID));
+            """));
 
         assertThatThrownBy(() -> service.upsert(body))
             .isInstanceOf(SqsNonRetryableException.class)
@@ -156,8 +157,9 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
-    void upsert_shouldSetOnlyVersionAndLastUpdated_whenLifecycleEventHasNoData() throws Exception {
-        JsonNode body = mapper.readTree(lifecycleEventWithNoData());
+    void upsert_shouldSetVersionLastUpdatedAndOrganisation_whenLifecycleEventHasNoData() throws Exception {
+        JsonNode body = mapper.readTree(
+            NotificationEventEnvelope.headerOnly("agg-1", 2, ORGANISATION_ID));
 
         service.upsert(body);
 
@@ -180,23 +182,23 @@ class NotificationUpsertServiceTest {
 
     @Test
     void upsert_shouldStoreCommodityFromTradeLineDescription() throws Exception {
-        JsonNode body = mapper.readTree("""
+        JsonNode body = mapper.readTree(NotificationEventEnvelope.withData(
+            NotificationEventEnvelope.DEFAULT_AGGREGATE_ID,
+            1,
+            ORGANISATION_ID,
+            NotificationEventEnvelope.NOTIFICATION_EDITED,
+            """
             {
-              "aggregateId": "agg-1",
-              "aggregateVersion": 1,
-              "organisationId": "%s",
-              "data": {
-                "specifiedConsignment": {
-                  "includedConsignmentItem": [{
-                    "includedTradeLineItem": [{
-                      "description": ["Live bovine animals"],
-                      "commonName": "Domestic cattle"
-                    }]
+              "specifiedConsignment": {
+                "includedConsignmentItem": [{
+                  "includedTradeLineItem": [{
+                    "description": ["Live bovine animals"],
+                    "commonName": "Domestic cattle"
                   }]
-                }
+                }]
               }
             }
-            """.formatted(ORGANISATION_ID));
+            """));
 
         service.upsert(body);
 
@@ -205,22 +207,22 @@ class NotificationUpsertServiceTest {
 
     @Test
     void upsert_shouldStoreCommodityFromCommonName_whenDescriptionMissing() throws Exception {
-        JsonNode body = mapper.readTree("""
+        JsonNode body = mapper.readTree(NotificationEventEnvelope.withData(
+            NotificationEventEnvelope.DEFAULT_AGGREGATE_ID,
+            1,
+            ORGANISATION_ID,
+            NotificationEventEnvelope.NOTIFICATION_EDITED,
+            """
             {
-              "aggregateId": "agg-1",
-              "aggregateVersion": 1,
-              "organisationId": "%s",
-              "data": {
-                "specifiedConsignment": {
-                  "includedConsignmentItem": [{
-                    "includedTradeLineItem": [{
-                      "commonName": "Domestic cattle"
-                    }]
+              "specifiedConsignment": {
+                "includedConsignmentItem": [{
+                  "includedTradeLineItem": [{
+                    "commonName": "Domestic cattle"
                   }]
-                }
+                }]
               }
             }
-            """.formatted(ORGANISATION_ID));
+            """));
 
         service.upsert(body);
 
@@ -254,81 +256,77 @@ class NotificationUpsertServiceTest {
         return updateCaptor.getValue().getUpdateObject();
     }
 
-    private static String lifecycleEventWithNoData() {
-        return """
-            {"aggregateId":"agg-1","aggregateVersion":2,"organisationId":"%s"}
-            """.formatted(ORGANISATION_ID);
-    }
-
     private static String eventFromTheCanaryIslandsWithAnotherSubDivisionListedFirst() {
-        return """
+        return NotificationEventEnvelope.withData(
+            NotificationEventEnvelope.DEFAULT_AGGREGATE_ID,
+            1,
+            ORGANISATION_ID,
+            NotificationEventEnvelope.NOTIFICATION_EDITED,
+            """
             {
-              "aggregateId": "agg-1",
-              "aggregateVersion": 1,
-              "organisationId": "%s",
-              "data": {
-                "specifiedConsignment": {
-                  "originCountry": {
-                    "code": { "value": "ES" },
-                    "subordinateTradeCountrySubDivision": [
-                      { "functionTypeCode": { "content": "44" } },
-                      {
-                        "identifier": "ES-CN",
-                        "urlId": "https://refdata.tbc.defra.gov.uk/country_subdivisions",
-                        "functionTypeCode": { "content": "106" }
-                      }
-                    ],
-                    "regionOfOriginCode": "ES-12345"
-                  }
+              "specifiedConsignment": {
+                "originCountry": {
+                  "code": { "value": "ES" },
+                  "subordinateTradeCountrySubDivision": [
+                    { "functionTypeCode": { "content": "44" } },
+                    {
+                      "identifier": "ES-CN",
+                      "urlId": "https://refdata.tbc.defra.gov.uk/country_subdivisions",
+                      "functionTypeCode": { "content": "106" }
+                    }
+                  ],
+                  "regionOfOriginCode": "ES-12345"
                 }
               }
             }
-            """.formatted(ORGANISATION_ID);
+            """);
     }
 
     private static String eventScheduledToArriveAt(String scheduledOccurrenceDateTime) {
-        return """
+        return NotificationEventEnvelope.withData(
+            NotificationEventEnvelope.DEFAULT_AGGREGATE_ID,
+            1,
+            ORGANISATION_ID,
+            NotificationEventEnvelope.NOTIFICATION_EDITED,
+            """
             {
-              "aggregateId": "agg-1",
-              "aggregateVersion": 1,
-              "organisationId": "%s",
-              "data": {
-                "specifiedConsignment": {
-                  "mainCarriageLogisticsTransportMovement": [
-                    { "arrivalEvent": [{ "scheduledOccurrenceDateTime": "%s" }] }
-                  ]
-                }
+              "specifiedConsignment": {
+                "mainCarriageLogisticsTransportMovement": [
+                  { "arrivalEvent": [{ "scheduledOccurrenceDateTime": "%s" }] }
+                ]
               }
             }
-            """.formatted(ORGANISATION_ID, scheduledOccurrenceDateTime);
+            """
+                .formatted(scheduledOccurrenceDateTime));
     }
 
     private static String fullNotificationEdited(long version) {
-        return """
-            {
-              "aggregateId": "agg-1",
-              "aggregateVersion": %d,
-              "organisationId": "%s",
-              "eventType": "uk.gov.defra.imports.notification.NotificationEdited",
-              "data": {
-                "exchangedDocument": {
-                  "identifier": "GBN-AG-26-001",
-                  "notificationStatusCode": "DRAFT",
-                  "issueDateTime": "2026-08-19T10:00:00Z"
-                },
-                "specifiedConsignment": {
-                  "originCountry": { "code": { "value": "GB" } },
-                  "mainCarriageLogisticsTransportMovement": [
-                    { "arrivalEvent": [{ "scheduledOccurrenceDateTime": "2026-08-20T00:00:00Z" }] }
-                  ],
-                  "includedConsignmentItem": [
-                    { "includedTradeLineItem": [
-                        { "applicableClassification": [{ "classCode": { "value": "01059900" } }] }
-                    ]}
-                  ]
-                }
-              }
-            }
-            """.formatted(version, ORGANISATION_ID);
+        return NotificationEventEnvelope.withData(
+            NotificationEventEnvelope.DEFAULT_AGGREGATE_ID,
+            version,
+            ORGANISATION_ID,
+            NotificationEventEnvelope.NOTIFICATION_EDITED,
+            NOTIFICATION_EDITED_DATA);
     }
+
+    private static final String NOTIFICATION_EDITED_DATA = """
+        {
+          "exchangedDocument": {
+            "identifier": "GBN-AG-26-001",
+            "notificationStatusCode": "DRAFT",
+            "issueDateTime": "2026-08-19T10:00:00Z"
+          },
+          "specifiedConsignment": {
+            "originCountry": { "code": { "value": "GB" } },
+            "mainCarriageLogisticsTransportMovement": [
+              { "arrivalEvent": [{ "scheduledOccurrenceDateTime": "2026-08-20T00:00:00Z" }] }
+            ],
+            "includedConsignmentItem": [
+              { "includedTradeLineItem": [
+                  { "applicableClassification": [{ "classCode": { "value": "01059900" } }] }
+              ]}
+            ]
+          }
+        }
+        """;
 }
