@@ -31,7 +31,7 @@ class AggregatedNotificationIndexMaintenanceIT extends IntegrationBase {
     @Test
     void startup_shouldDropLegacyStatusSortIndex_whenItExists() {
         IndexOperations indexOps = mongoTemplate.indexOps(AggregatedNotification.class);
-        indexOps.ensureIndex(
+        indexOps.createIndex(
             new Index()
                 .on("status", Sort.Direction.ASC)
                 .on("arrivalDate", Sort.Direction.DESC)
