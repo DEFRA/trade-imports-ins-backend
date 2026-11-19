@@ -24,7 +24,7 @@ class NoWebSecurityIT extends IntegrationBase {
 
     @Test
     void notifications_shouldAnswerWithoutCredentials() throws Exception {
-        mockMvc.perform(get("/notifications"))
+        mockMvc.perform(listNotificationsFor(ORGANISATION_ID))
             .andExpect(status().is2xxSuccessful());
     }
 

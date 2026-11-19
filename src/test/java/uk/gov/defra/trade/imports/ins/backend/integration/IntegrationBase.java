@@ -16,6 +16,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import uk.gov.defra.trade.imports.ins.backend.filter.TraderOrganisationHeaderFilter;
 import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.lifecycle.Startables;
 import org.testcontainers.utility.DockerImageName;
@@ -39,6 +42,7 @@ abstract class IntegrationBase {
 
     static final String AWS_REGION = "eu-west-2";
     static final String QUEUE_NAME = "trade_imports_ins_notifications.fifo";
+    protected static final String ORGANISATION_ID = "5900001";
 
     static final FlociContainer FLOCI = new FlociContainer(
         DockerImageName.parse("floci/floci:latest"))
@@ -64,6 +68,11 @@ abstract class IntegrationBase {
 
     @Autowired
     protected MockMvc mockMvc;
+
+    protected static MockHttpServletRequestBuilder listNotificationsFor(String organisationId) {
+        return get("/notifications")
+            .header(TraderOrganisationHeaderFilter.ORGANISATION_ID_HEADER, organisationId);
+    }
 
     @DynamicPropertySource
     static void setProperties(DynamicPropertyRegistry registry) {

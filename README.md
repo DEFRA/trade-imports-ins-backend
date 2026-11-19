@@ -52,6 +52,13 @@ sudo mongod --dbpath ~/mongodb-cdp
 In CDP environments a MongoDB instance is already set up
 and the credentials exposed as enviromment variables.
 
+### MongoDB indexes
+
+The `notifications` collection uses compound index `organisation_status_sort_fields` with
+`organisationId` as its leading field. On startup, `AggregatedNotificationIndexMaintenance`
+drops the legacy `status_sort_fields` index when present so existing CDP and local databases can
+adopt the new key pattern without a manual step.
+
 ### Inspect MongoDB
 
 To inspect the Database and Collections locally:
