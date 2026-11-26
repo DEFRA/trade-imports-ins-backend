@@ -10,8 +10,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.Index;
+import org.springframework.data.mongodb.core.index.IndexField;
 import org.springframework.data.mongodb.core.index.IndexInfo;
 import org.springframework.data.mongodb.core.index.IndexOperations;
+import org.springframework.data.mongodb.core.index.MongoPersistentEntityIndexResolver;
 import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotification;
 import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotificationIndexMaintenance;
 
@@ -43,6 +45,26 @@ class AggregatedNotificationIndexMaintenanceIT extends IntegrationBase {
         assertThat(indexOps.getIndexInfo())
             .extracting(IndexInfo::getName)
             .doesNotContain(AggregatedNotificationIndexMaintenance.LEGACY_STATUS_SORT_INDEX);
+    }
+
+    @Test
+    void declaredIndexes_shouldIncludeOrganisationStatusSortIndexOnItsFourFields() {
+        IndexOperations indexOps = mongoTemplate.indexOps(AggregatedNotification.class);
+        new MongoPersistentEntityIndexResolver(mongoTemplate.getConverter().getMappingContext())
+            .resolveIndexFor(AggregatedNotification.class)
+            .forEach(indexOps::createIndex);
+
+        assertThat(indexOps.getIndexInfo())
+            .filteredOn(index -> AggregatedNotification.ORGANISATION_STATUS_SORT_INDEX.equals(index.getName()))
+            .singleElement()
+            .satisfies(index -> {
+                assertThat(index.getIndexFields())
+                    .extracting(IndexField::getKey)
+                    .containsExactly("organisationId", "status", "arrivalDate", "lastUpdated");
+                assertThat(index.getIndexFields())
+                    .extracting(IndexField::getDirection)
+                    .containsExactly(Sort.Direction.ASC, Sort.Direction.ASC, Sort.Direction.DESC, Sort.Direction.DESC);
+            });
     }
 
     @Test
