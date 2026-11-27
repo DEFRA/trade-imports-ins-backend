@@ -23,7 +23,7 @@
     <maven.compiler.source>25</maven.compiler.source>
     <maven.compiler.target>25</maven.compiler.target>
     <amazon.awssdk.version>2.40.2</amazon.awssdk.version>
-    <spring-cloud-aws.version>3.4.2</spring-cloud-aws.version>
+    <spring-cloud-aws.version>4.2.2</spring-cloud-aws.version>
     <testcontainers.version>2.0.2</testcontainers.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <sonar.organization>defra</sonar.organization>
