@@ -12,12 +12,13 @@ public class DependencyAvailabilityMetrics {
       MeterRegistry meterRegistry,
       MongoAvailability mongoAvailability,
       LastCallOutcomes lastCallOutcomes) {
-    register(meterRegistry, Dependency.MONGODB, mongoAvailability::state);
     for (Dependency dependency : Dependency.values()) {
-      if (dependency != Dependency.MONGODB) {
-        register(
-            meterRegistry, dependency, () -> lastCallOutcomes.lastCallAvailability(dependency));
-      }
+      Supplier<Availability> availability =
+          switch (dependency.availabilitySource()) {
+            case MONGO_SERVER_CHECKS -> mongoAvailability::state;
+            case LAST_CALL -> () -> lastCallOutcomes.lastCallAvailability(dependency);
+          };
+      register(meterRegistry, dependency, availability);
     }
   }
 

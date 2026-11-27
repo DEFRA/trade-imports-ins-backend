@@ -41,14 +41,22 @@ class ExternalCallRecorderTest {
 
   @Test
   void recordFailure_shouldRecordTheDurationAFailureOfOneAndTheDependencyAsUnavailable() {
+    recorder.recordFailure(SQS_RECEIVE_MESSAGE, Duration.ofMillis(3), new IllegalStateException());
+
+    assertThat(durationSampleCount(meterRegistry, SQS_RECEIVE_MESSAGE)).isEqualTo(1);
+    assertThat(totalDurationMillis(meterRegistry, SQS_RECEIVE_MESSAGE)).isEqualTo(3);
+    assertThat(failureSampleCount(meterRegistry, SQS_RECEIVE_MESSAGE)).isEqualTo(1);
+    assertThat(failureTotal(meterRegistry, SQS_RECEIVE_MESSAGE)).isEqualTo(1);
+    assertThat(lastCallOutcomes.lastCallAvailability(Dependency.SQS))
+        .isEqualTo(Availability.UNAVAILABLE);
+  }
+
+  @Test
+  void recordFailure_shouldLeaveTheLastCallAvailabilityOfMongoDbUnknown() {
     recorder.recordFailure(MONGODB_FIND, Duration.ofMillis(3), new IllegalStateException());
 
-    assertThat(durationSampleCount(meterRegistry, MONGODB_FIND)).isEqualTo(1);
-    assertThat(totalDurationMillis(meterRegistry, MONGODB_FIND)).isEqualTo(3);
-    assertThat(failureSampleCount(meterRegistry, MONGODB_FIND)).isEqualTo(1);
-    assertThat(failureTotal(meterRegistry, MONGODB_FIND)).isEqualTo(1);
     assertThat(lastCallOutcomes.lastCallAvailability(Dependency.MONGODB))
-        .isEqualTo(Availability.UNAVAILABLE);
+        .isEqualTo(Availability.UNKNOWN);
   }
 
   @Test

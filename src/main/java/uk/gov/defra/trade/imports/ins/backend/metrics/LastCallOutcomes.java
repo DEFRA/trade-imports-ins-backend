@@ -5,9 +5,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
 
 /**
- * The outcome of the most recent call to each dependency. The outcome has no time attached: one
- * failed call, on any of the dependency's operations, marks the whole dependency as unavailable
- * until its next call succeeds.
+ * The outcome of the most recent call to each dependency whose availability source is {@link
+ * Dependency.AvailabilitySource#LAST_CALL}. Calls to any other dependency are not held. The outcome
+ * has no time attached: one failed call, on any of the dependency's operations, marks the whole
+ * dependency as unavailable until its next call succeeds.
  */
 @Component
 public class LastCallOutcomes {
@@ -15,11 +16,17 @@ public class LastCallOutcomes {
   private final Map<Dependency, Availability> availabilityByDependency = new ConcurrentHashMap<>();
 
   public void recordSuccess(Dependency dependency) {
-    availabilityByDependency.put(dependency, Availability.AVAILABLE);
+    record(dependency, Availability.AVAILABLE);
   }
 
   public void recordFailure(Dependency dependency) {
-    availabilityByDependency.put(dependency, Availability.UNAVAILABLE);
+    record(dependency, Availability.UNAVAILABLE);
+  }
+
+  private void record(Dependency dependency, Availability availability) {
+    if (dependency.availabilitySource() == Dependency.AvailabilitySource.LAST_CALL) {
+      availabilityByDependency.put(dependency, availability);
+    }
   }
 
   /**
@@ -27,7 +34,7 @@ public class LastCallOutcomes {
    *
    * @param dependency the system called
    * @return available after a success, unavailable after a failure, and unknown when the
-   *     dependency has not been called since start-up
+   *     dependency has not been called since start-up or its availability comes from elsewhere
    */
   public Availability lastCallAvailability(Dependency dependency) {
     return availabilityByDependency.getOrDefault(dependency, Availability.UNKNOWN);
