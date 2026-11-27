@@ -72,6 +72,6 @@ public class MongoCallRecorder implements CommandListener {
   }
 
   private static ExternalCall callOf(String commandName) {
-    return ExternalCall.of(Dependency.MONGODB, commandName, KNOWN_COMMANDS);
+    return ExternalCall.boundedTo(Dependency.MONGODB, commandName, KNOWN_COMMANDS);
   }
 }

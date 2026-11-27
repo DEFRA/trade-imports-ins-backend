@@ -17,15 +17,14 @@ public record ExternalCall(Dependency dependency, String operation) {
   }
 
   /**
-   * A call named by its operation when the operation is one of the dependency's known operations,
-   * and by {@code other} when it is not, or is missing.
+   * A call whose operation is bounded to the known operations.
    *
    * @param dependency the system called
    * @param operation the operation on that system, or null when the call does not name one
    * @param knownOperations the operations reported by name
-   * @return the call
+   * @return the call, with {@code operation} when it is known, else {@code other}
    */
-  public static ExternalCall of(
+  public static ExternalCall boundedTo(
       Dependency dependency, String operation, Set<String> knownOperations) {
     boolean known = operation != null && knownOperations.contains(operation);
     return new ExternalCall(dependency, known ? operation : "other");

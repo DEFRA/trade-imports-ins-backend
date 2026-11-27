@@ -80,6 +80,6 @@ public class AwsCallRecorder implements ExecutionInterceptor {
         action == null
             ? null
             : action.replaceAll("([a-z])([A-Z])", "$1-$2").toLowerCase(Locale.ROOT);
-    return ExternalCall.of(dependency, operation, knownOperations);
+    return ExternalCall.boundedTo(dependency, operation, knownOperations);
   }
 }
