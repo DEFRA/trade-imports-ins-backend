@@ -11,6 +11,8 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 
+import static uk.gov.defra.trade.imports.ins.backend.logging.TraceContext.MDC_TRACE_ID;
+
 /**
  * Servlet filter that populates MDC (Mapped Diagnostic Context) with request tracing information
  * for ECS (Elastic Common Schema) structured logging.
@@ -21,8 +23,6 @@ import java.io.IOException;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class RequestTracingFilter implements Filter {
 
-    
-    public static final String MDC_TRACE_ID = "trace.id";
     private static final String MDC_HTTP_METHOD = "http.request.method";
     private static final String MDC_HTTP_STATUS = "http.response.status_code";
     private static final String MDC_URL_FULL = "url.full";

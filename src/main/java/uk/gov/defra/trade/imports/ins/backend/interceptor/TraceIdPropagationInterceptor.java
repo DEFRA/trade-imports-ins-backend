@@ -1,5 +1,7 @@
 package uk.gov.defra.trade.imports.ins.backend.interceptor;
 
+import static uk.gov.defra.trade.imports.ins.backend.logging.TraceContext.MDC_TRACE_ID;
+
 import java.io.IOException;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,8 +24,6 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class TraceIdPropagationInterceptor implements ClientHttpRequestInterceptor {
-
-  private static final String MDC_TRACE_ID = "trace.id";
 
   private final String headerName;
   

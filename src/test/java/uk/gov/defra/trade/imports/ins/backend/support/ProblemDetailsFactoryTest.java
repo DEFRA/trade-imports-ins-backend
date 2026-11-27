@@ -1,6 +1,7 @@
 package uk.gov.defra.trade.imports.ins.backend.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static uk.gov.defra.trade.imports.ins.backend.logging.TraceContext.MDC_TRACE_ID;
 
 import java.net.URI;
 import org.junit.jupiter.api.AfterEach;
@@ -30,7 +31,7 @@ class ProblemDetailsFactoryTest {
 
     @Test
     void problemDetail_shouldIncludeTraceId_whenMdcHasTraceId() {
-        MDC.put("trace.id", "trace-abc");
+        MDC.put(MDC_TRACE_ID, "trace-abc");
 
         ProblemDetail problem =
             ProblemDetailsFactory.problemDetail(

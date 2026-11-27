@@ -1,5 +1,7 @@
 package uk.gov.defra.trade.imports.ins.backend.exceptions;
 
+import static uk.gov.defra.trade.imports.ins.backend.logging.TraceContext.MDC_TRACE_ID;
+
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -22,8 +24,6 @@ import java.util.Map;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
-
-  private static final String MDC_TRACE_ID = "trace.id";
 
   /**
    * Handle validation errors (400 Bad Request).

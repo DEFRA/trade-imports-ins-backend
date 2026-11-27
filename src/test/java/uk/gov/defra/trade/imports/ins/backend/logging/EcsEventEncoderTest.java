@@ -1,7 +1,7 @@
 package uk.gov.defra.trade.imports.ins.backend.logging;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static uk.gov.defra.trade.imports.ins.backend.filter.RequestTracingFilter.MDC_TRACE_ID;
+import static uk.gov.defra.trade.imports.ins.backend.logging.TraceContext.MDC_TRACE_ID;
 import static uk.gov.defra.trade.imports.ins.backend.testsupport.CapturedLogs.loggedBy;
 
 import ch.qos.logback.classic.LoggerContext;

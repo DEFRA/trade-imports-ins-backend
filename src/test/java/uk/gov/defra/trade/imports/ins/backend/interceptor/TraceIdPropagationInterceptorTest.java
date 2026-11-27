@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static uk.gov.defra.trade.imports.ins.backend.logging.TraceContext.MDC_TRACE_ID;
 
 /**
  * Unit tests for TraceIdPropagationInterceptor.
@@ -31,7 +32,6 @@ import static org.mockito.Mockito.verify;
 class TraceIdPropagationInterceptorTest {
 
   private static final String TRACE_ID_HEADER = "x-cdp-request-id";
-  private static final String MDC_TRACE_ID = "trace.id";
 
   @Mock private HttpRequest request;
 

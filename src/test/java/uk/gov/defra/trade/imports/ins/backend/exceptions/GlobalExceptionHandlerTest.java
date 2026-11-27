@@ -3,6 +3,7 @@ package uk.gov.defra.trade.imports.ins.backend.exceptions;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static uk.gov.defra.trade.imports.ins.backend.logging.TraceContext.MDC_TRACE_ID;
 
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
@@ -42,7 +43,7 @@ class GlobalExceptionHandlerTest {
     void handleValidationException_shouldReturnBadRequestWithFieldErrors() {
         // Given
         String traceId = "test-trace-123";
-        MDC.put("trace.id", traceId);
+        MDC.put(MDC_TRACE_ID, traceId);
 
         MethodArgumentNotValidException exception = createValidationException(
             new FieldError("notification", "origin", "must not be null"),
@@ -92,7 +93,7 @@ class GlobalExceptionHandlerTest {
     void handleConstraintViolationException_shouldReturnBadRequestWithFieldErrors() {
         // Given
         String traceId = "test-trace-321";
-        MDC.put("trace.id", traceId);
+        MDC.put(MDC_TRACE_ID, traceId);
         ConstraintViolationException exception = createConstraintViolationException(
             "findAll.page", "must be greater than or equal to 1");
 
@@ -137,7 +138,7 @@ class GlobalExceptionHandlerTest {
     void handleNotFoundException_shouldReturnNotFound() {
         // Given
         String traceId = "test-trace-456";
-        MDC.put("trace.id", traceId);
+        MDC.put(MDC_TRACE_ID, traceId);
         NotFoundException exception = new NotFoundException("Notification with id 12345 not found");
 
         // When
@@ -175,7 +176,7 @@ class GlobalExceptionHandlerTest {
     void handleConflictException_shouldReturnConflict() {
         // Given
         String traceId = "test-trace-789";
-        MDC.put("trace.id", traceId);
+        MDC.put(MDC_TRACE_ID, traceId);
         ConflictException exception = new ConflictException("Notification with reference DRAFT.IMP.2026.001 already exists");
 
         // When
@@ -213,7 +214,7 @@ class GlobalExceptionHandlerTest {
     void handleException_shouldReturnInternalServerError_forRuntimeException() {
         // Given
         String traceId = "test-trace-999";
-        MDC.put("trace.id", traceId);
+        MDC.put(MDC_TRACE_ID, traceId);
         RuntimeException exception = new RuntimeException("Unexpected database error");
 
         // When
