@@ -3,7 +3,6 @@ package uk.gov.defra.trade.imports.ins.backend.configuration;
 import io.awspring.cloud.sqs.config.SqsMessageListenerContainerFactory;
 import java.net.URI;
 import java.time.Duration;
-import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -17,22 +16,12 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
 import software.amazon.awssdk.services.sqs.SqsAsyncClientBuilder;
 import uk.gov.defra.trade.imports.ins.backend.metrics.AwsCallRecorder;
-import uk.gov.defra.trade.imports.ins.backend.metrics.Dependency;
 import uk.gov.defra.trade.imports.ins.backend.metrics.ExternalCallRecorder;
 import uk.gov.defra.trade.imports.ins.backend.notification.NotificationErrorHandler;
 
 @Slf4j
 @Configuration
 public class AwsConfig {
-
-    private static final Set<String> SQS_OPERATIONS = Set.of(
-        "receive-message",
-        "delete-message",
-        "delete-message-batch",
-        "change-message-visibility",
-        "change-message-visibility-batch",
-        "get-queue-attributes",
-        "get-queue-url");
 
     private final String region;
     private final AppAwsConfig appAwsConfig;
@@ -52,8 +41,7 @@ public class AwsConfig {
             .overrideConfiguration(c -> c
                 .retryStrategy(RetryMode.ADAPTIVE_V2)
                 .apiCallTimeout(Duration.ofSeconds(30))
-                .addExecutionInterceptor(new AwsCallRecorder(
-                    externalCallRecorder, Dependency.SQS, SQS_OPERATIONS)));
+                .addExecutionInterceptor(AwsCallRecorder.forSqs(externalCallRecorder)));
         if (hasEndpointOverride()) {
             log.info("Using SQS endpoint override: {}", appAwsConfig.endpointOverride());
             builder.endpointOverride(URI.create(appAwsConfig.endpointOverride()));

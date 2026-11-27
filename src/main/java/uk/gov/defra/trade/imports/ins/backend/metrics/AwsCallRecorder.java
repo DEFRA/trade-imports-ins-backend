@@ -32,6 +32,24 @@ public class AwsCallRecorder implements ExecutionInterceptor {
     this.knownOperations = Set.copyOf(knownOperations);
   }
 
+  /**
+   * Records the calls of an SQS client to {@code sqs}, naming its receive, delete, visibility and
+   * queue lookup operations.
+   */
+  public static AwsCallRecorder forSqs(ExternalCallRecorder externalCallRecorder) {
+    return new AwsCallRecorder(
+        externalCallRecorder,
+        Dependency.SQS,
+        Set.of(
+            "receive-message",
+            "delete-message",
+            "delete-message-batch",
+            "change-message-visibility",
+            "change-message-visibility-batch",
+            "get-queue-attributes",
+            "get-queue-url"));
+  }
+
   @Override
   public void beforeExecution(Context.BeforeExecution context, ExecutionAttributes attributes) {
     attributes.putAttribute(STARTED_AT_NANOS, externalCallRecorder.callStartedAt());
