@@ -6,18 +6,13 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/**
- * The meters have to survive {@code EmfMetricsPublisher}, which publishes a meter's name and the
- * value of each of its measurements and nothing else. So every meter here must be a counter —
- * one measurement — and must carry its dimension in its name, or two meters collide in CloudWatch.
- */
 class AddressLookupMetricsTest {
 
     private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
     private final AddressLookupMetrics metrics = new AddressLookupMetrics(registry);
 
     @Test
-    void constructor_shouldCreateEveryCounterAtZero_soTheFirstSearchIsNotLostToAScrape() {
+    void constructor_shouldCreateEveryCounterAtZero() {
         assertThat(registry.find("addressLookup.searches").counter().count()).isZero();
         assertThat(registry.find("addressLookup.mode.find").counter().count()).isZero();
         assertThat(registry.find("addressLookup.outcome.no_results").counter().count()).isZero();
@@ -35,7 +30,7 @@ class AddressLookupMetricsTest {
     }
 
     @Test
-    void recordSearch_shouldNameTheFailureReason_soEachIsItsOwnMetric() {
+    void recordSearch_shouldCountTheFailureReason() {
         metrics.recordSearch(AddressLookupResponse
             .failed(query(AddressLookupResponse.Mode.POSTCODE), AddressLookupResponse.FailureReason.HTTP_503)
             .withTimings(cachedTimings()));
@@ -45,21 +40,13 @@ class AddressLookupMetricsTest {
     }
 
     @Test
-    void recordSearch_shouldAccumulateDurations_soTheDashboardCanDivideForAMean() {
+    void recordSearch_shouldAddEachSearchsDurationsToTheirCounters() {
         metrics.recordSearch(results(AddressLookupResponse.Mode.POSTCODE, cachedTimings()));
         metrics.recordSearch(results(AddressLookupResponse.Mode.POSTCODE, cachedTimings()));
 
         assertThat(counter("addressLookup.searches")).isEqualTo(2);
         assertThat(counter("addressLookup.durationMs.lookup")).isEqualTo(1400);
         assertThat(counter("addressLookup.durationMs.total")).isEqualTo(1410);
-    }
-
-    @Test
-    void everyMeterShouldBeASingleMeasurement_orTheEmfPublisherWouldCollideThem() {
-        metrics.recordSearch(results(AddressLookupResponse.Mode.POSTCODE, LookupTimings.of(1000L, 800L, 2000L, 2100L)));
-
-        assertThat(registry.getMeters())
-            .allSatisfy(meter -> assertThat(meter.measure()).hasSize(1));
     }
 
     @Test

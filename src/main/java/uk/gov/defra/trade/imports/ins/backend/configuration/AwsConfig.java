@@ -15,6 +15,8 @@ import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
 import software.amazon.awssdk.services.sqs.SqsAsyncClientBuilder;
+import uk.gov.defra.trade.imports.ins.backend.metrics.AwsCallRecorder;
+import uk.gov.defra.trade.imports.ins.backend.metrics.ExternalCallRecorder;
 import uk.gov.defra.trade.imports.ins.backend.notification.NotificationErrorHandler;
 
 @Slf4j
@@ -32,13 +34,14 @@ public class AwsConfig {
     }
 
     @Bean
-    public SqsAsyncClient sqsAsyncClient() {
+    public SqsAsyncClient sqsAsyncClient(ExternalCallRecorder externalCallRecorder) {
         SqsAsyncClientBuilder builder = SqsAsyncClient.builder()
             .region(Region.of(region))
             .credentialsProvider(resolveCredentialsProvider())
             .overrideConfiguration(c -> c
                 .retryStrategy(RetryMode.ADAPTIVE_V2)
-                .apiCallTimeout(Duration.ofSeconds(30)));
+                .apiCallTimeout(Duration.ofSeconds(30))
+                .addExecutionInterceptor(AwsCallRecorder.forSqs(externalCallRecorder)));
         if (hasEndpointOverride()) {
             log.info("Using SQS endpoint override: {}", appAwsConfig.endpointOverride());
             builder.endpointOverride(URI.create(appAwsConfig.endpointOverride()));

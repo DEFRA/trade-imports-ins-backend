@@ -3,6 +3,7 @@ package uk.gov.defra.trade.imports.ins.backend.integration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -12,7 +13,6 @@ import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.MongoTemplate;
 import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotification;
 import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotificationRepository;
 import uk.gov.defra.trade.imports.ins.backend.testsupport.NotificationEventEnvelope;
@@ -25,7 +25,7 @@ class NotificationSqsListenerIT extends IntegrationBase {
     private AggregatedNotificationRepository repository;
 
     @Autowired
-    private MongoTemplate mongoTemplate;
+    private MeterRegistry meterRegistry;
 
     @BeforeEach
     void setup() {
@@ -155,6 +155,36 @@ class NotificationSqsListenerIT extends IntegrationBase {
     }
 
     @Test
+    void lowerAggregateVersion_isCountedAsSkipped_notDiscarded() {
+        sendToSqs(notificationEdited(5), AGGREGATE_ID);
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
+            assertThat(repository.findById(AGGREGATE_ID)).isPresent());
+        double skippedBefore = messageCount("skipped");
+        double discardedBefore = messageCount("discarded");
+
+        sendToSqs(notificationEdited(3), AGGREGATE_ID);
+
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
+            assertThat(messageCount("skipped")).isEqualTo(skippedBefore + 1));
+        assertThat(messageCount("discarded")).isEqualTo(discardedBefore);
+    }
+
+    @Test
+    void deliveringSameEventTwice_countsTheSecondDeliveryAsSkipped_notDiscarded() {
+        sendToSqs(notificationEdited(1), AGGREGATE_ID);
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
+            assertThat(repository.findById(AGGREGATE_ID)).isPresent());
+        double skippedBefore = messageCount("skipped");
+        double discardedBefore = messageCount("discarded");
+
+        sendToSqs(notificationEdited(1), AGGREGATE_ID);
+
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
+            assertThat(messageCount("skipped")).isEqualTo(skippedBefore + 1));
+        assertThat(messageCount("discarded")).isEqualTo(discardedBefore);
+    }
+
+    @Test
     void notificationSubmitted_updatesStatus_andKeepsTheStoredCommodity() {
         sendToSqs(notificationEdited(1), AGGREGATE_ID);
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
@@ -187,6 +217,10 @@ class NotificationSqsListenerIT extends IntegrationBase {
 
         awaitQueueEmpty();
         assertThat(repository.count()).isZero();
+    }
+
+    private double messageCount(String outcome) {
+        return meterRegistry.counter("notification.ins.sqs.messages", "outcome", outcome).count();
     }
 
     private Document storedDocument() {

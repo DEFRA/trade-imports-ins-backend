@@ -1,5 +1,6 @@
 package uk.gov.defra.trade.imports.ins.backend.notification;
 
+import io.micrometer.core.annotation.Timed;
 import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
@@ -11,7 +12,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-/** Serves {@code GET /notifications} for the unified dashboard. */
 @Slf4j
 @Service
 public class AggregatedNotificationQueryService {
@@ -28,6 +28,7 @@ public class AggregatedNotificationQueryService {
         this.listPageSize = listPageSize;
     }
 
+    @Timed("service.findOrganisationPage.time")
     public AggregatedNotificationPageResponse findOrganisationPage(
         int page, String sort, String referenceNumber, String organisationId) {
         Pageable pageable = PageRequest.of(page - 1, listPageSize, AggregatedNotificationSort.toSort(sort));
@@ -35,7 +36,7 @@ public class AggregatedNotificationQueryService {
         String trimmedReference = StringUtils.trimToNull(referenceNumber);
         if (trimmedReference != null) {
             log.debug(
-                "Fetching notification by reference {} for dashboard organisationId={}",
+                "Fetching notification by reference {} organisationId={}",
                 trimmedReference,
                 organisationId);
             Optional<AggregatedNotification> match =

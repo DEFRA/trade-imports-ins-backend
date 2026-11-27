@@ -5,8 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static uk.gov.defra.trade.imports.ins.backend.testsupport.JvmDefaultZoneExtension.EAST_OF_UTC;
 import static uk.gov.defra.trade.imports.ins.backend.testsupport.JvmDefaultZoneExtension.WEST_OF_UTC;
+import static uk.gov.defra.trade.imports.ins.backend.testsupport.UpsertedDocuments.lastUpsertUpdateDocument;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,6 +23,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -60,7 +63,7 @@ class NotificationUpsertServiceTest {
         Document versionFilter = queryDoc.get("aggregateVersion", Document.class);
         assertThat(versionFilter).containsEntry("$lt", 3L);
 
-        Document updateDoc = lastUpsertUpdateDocument();
+        Document updateDoc = lastUpsertUpdateDocument(mongoTemplate);
         Document setOnInsert = updateDoc.get("$setOnInsert", Document.class);
         assertThat(setOnInsert).containsEntry("_id", "agg-1");
         Document setFields = updateDoc.get("$set", Document.class);
@@ -157,6 +160,22 @@ class NotificationUpsertServiceTest {
     }
 
     @Test
+    void upsert_shouldReturnStored_whenTheUpsertSucceeds() throws Exception {
+        JsonNode body = mapper.readTree(fullNotificationEdited(3));
+
+        assertThat(service.upsert(body)).isEqualTo(NotificationUpsertService.Outcome.STORED);
+    }
+
+    @Test
+    void upsert_shouldReturnSkippedStale_whenTheStoredDocumentHoldsThatVersionOrALaterOne() throws Exception {
+        JsonNode body = mapper.readTree(fullNotificationEdited(3));
+        when(mongoTemplate.upsert(any(Query.class), any(Update.class), eq(AggregatedNotification.class)))
+            .thenThrow(new DuplicateKeyException("E11000 duplicate key error collection: notifications"));
+
+        assertThat(service.upsert(body)).isEqualTo(NotificationUpsertService.Outcome.SKIPPED_STALE);
+    }
+
+    @Test
     void upsert_shouldSetVersionLastUpdatedAndOrganisation_whenLifecycleEventHasNoData() throws Exception {
         JsonNode body = mapper.readTree(
             NotificationEventEnvelope.headerOnly("agg-1", 2, ORGANISATION_ID));
@@ -243,17 +262,11 @@ class NotificationUpsertServiceTest {
     }
 
     private Document upsertedSetFields() {
-        return lastUpsertUpdateDocument().get("$set", Document.class);
+        return lastUpsertUpdateDocument(mongoTemplate).get("$set", Document.class);
     }
 
     private Document upsertedUnsetFields() {
-        return lastUpsertUpdateDocument().get("$unset", Document.class);
-    }
-
-    private Document lastUpsertUpdateDocument() {
-        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
-        return updateCaptor.getValue().getUpdateObject();
+        return lastUpsertUpdateDocument(mongoTemplate).get("$unset", Document.class);
     }
 
     private static String eventFromTheCanaryIslandsWithAnotherSubDivisionListedFirst() {

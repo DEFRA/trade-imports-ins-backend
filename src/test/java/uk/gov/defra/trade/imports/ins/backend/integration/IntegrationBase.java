@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -19,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import uk.gov.defra.trade.imports.ins.backend.filter.TraderOrganisationHeaderFilter;
+import uk.gov.defra.trade.imports.ins.backend.notification.NotificationSqsListener;
 import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.lifecycle.Startables;
 import org.testcontainers.utility.DockerImageName;
@@ -29,6 +31,7 @@ import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.CreateQueueRequest;
 import software.amazon.awssdk.services.sqs.model.GetQueueAttributesRequest;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
+import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.PurgeQueueInProgressException;
 import software.amazon.awssdk.services.sqs.model.PurgeQueueRequest;
 import software.amazon.awssdk.services.sqs.model.QueueAttributeName;
@@ -48,8 +51,10 @@ abstract class IntegrationBase {
         DockerImageName.parse("floci/floci:latest"))
         .withRegion(AWS_REGION);
 
-    static final MongoDBContainer MONGO_CONTAINER = new MongoDBContainer(
-        DockerImageName.parse("mongo:7.0")).withExposedPorts(27017);
+    static final DockerImageName MONGO_IMAGE = DockerImageName.parse("mongo:7.0");
+
+    static final MongoDBContainer MONGO_CONTAINER = new MongoDBContainer(MONGO_IMAGE)
+        .withExposedPorts(27017);
 
     static final String queueUrl;
 
@@ -69,6 +74,9 @@ abstract class IntegrationBase {
     @Autowired
     protected MockMvc mockMvc;
 
+    @Autowired
+    protected MongoTemplate mongoTemplate;
+
     protected static MockHttpServletRequestBuilder listNotificationsFor(String organisationId) {
         return get("/notifications")
             .header(TraderOrganisationHeaderFilter.ORGANISATION_ID_HEADER, organisationId);
@@ -85,14 +93,27 @@ abstract class IntegrationBase {
         registry.add("app.aws.secret-access-key", FLOCI::getSecretKey);
     }
 
-    protected static void sendToSqs(String body, String messageGroupId) {
+    protected static String sendToSqs(String body, String messageGroupId) {
+        return sendToSqs(body, messageGroupId, Map.of());
+    }
+
+    protected static String sendToSqs(String body, String messageGroupId, String correlationId) {
+        return sendToSqs(body, messageGroupId, Map.of(
+            NotificationSqsListener.CORRELATION_ID_ATTRIBUTE,
+            MessageAttributeValue.builder().dataType("String").stringValue(correlationId).build()));
+    }
+
+    private static String sendToSqs(
+        String body, String messageGroupId, Map<String, MessageAttributeValue> messageAttributes) {
         try (SqsClient sqs = localSqsClient()) {
-            sqs.sendMessage(SendMessageRequest.builder()
+            return sqs.sendMessage(SendMessageRequest.builder()
                 .queueUrl(queueUrl)
                 .messageBody(body)
                 .messageGroupId(messageGroupId)
                 .messageDeduplicationId(java.util.UUID.randomUUID().toString())
-                .build());
+                .messageAttributes(messageAttributes)
+                .build())
+                .messageId();
         }
     }
 

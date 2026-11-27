@@ -16,6 +16,8 @@ import javax.net.ssl.SSLContext;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import uk.gov.defra.trade.imports.ins.backend.configuration.tls.TrustStoreConfiguration;
+import uk.gov.defra.trade.imports.ins.backend.metrics.MongoAvailability;
+import uk.gov.defra.trade.imports.ins.backend.metrics.MongoCallRecorder;
 
 @Configuration
 @Slf4j
@@ -44,11 +46,15 @@ public class MongoConfig {
       @Value("${spring.data.mongodb.read-preference}") ReadPreference readPreference,
       @Value("${spring.data.mongodb.write-concern}") WriteConcern writeConcern,
       TrustStoreConfiguration trustStoreConfiguration,
-      ConnectionPoolSettings connectionPoolSettings) {
+      ConnectionPoolSettings connectionPoolSettings,
+      MongoAvailability mongoAvailability,
+      MongoCallRecorder mongoCallRecorder) {
 
       MongoClientSettings.Builder builder = MongoClientSettings.builder()
           .applyConnectionString(new ConnectionString(mongoUri))
           .applyToConnectionPoolSettings(bdr -> bdr.applySettings(connectionPoolSettings))
+          .applyToClusterSettings(bdr -> bdr.addClusterListener(mongoAvailability))
+          .addCommandListener(mongoCallRecorder)
           .readPreference(readPreference)
           .writeConcern(writeConcern);
       
