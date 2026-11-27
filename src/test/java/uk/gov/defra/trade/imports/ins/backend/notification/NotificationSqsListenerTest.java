@@ -13,11 +13,14 @@ import static uk.gov.defra.trade.imports.ins.backend.testsupport.NotificationEve
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -47,11 +50,37 @@ class NotificationSqsListenerTest {
     }
 
     @Test
-    void receive_storesTheNotification_andCountsItProcessed_forKnownEventType() {
+    void receive_storesTheNotification_forKnownEventType() {
         listener.receive(notificationEdited(), DEFAULT_AGGREGATE_ID, "1", null, MESSAGE_ID);
 
         assertStoredVersionOneOfTheAggregate();
-        assertThat(registry.counter("notification.ins.sqs.messages", "outcome", "processed").count()).isEqualTo(1);
+    }
+
+    @Test
+    void receive_countsTheMessageProcessed_whenTheNotificationIsStored() {
+        listener.receive(notificationEdited(), DEFAULT_AGGREGATE_ID, "1", null, MESSAGE_ID);
+
+        assertThat(processedCount()).isEqualTo(1);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("refusedMessages")
+    void receive_leavesTheProcessedCountAtZero_whenTheMessageIsRefused(
+            String refusal, String body, String aggregateId) {
+        assertThatThrownBy(() -> listener.receive(body, aggregateId, "1", null, MESSAGE_ID))
+            .isInstanceOf(SqsNonRetryableException.class);
+
+        assertThat(processedCount()).isZero();
+    }
+
+    private static Stream<Arguments> refusedMessages() {
+        return Stream.of(
+            Arguments.of("unknown event type", eventBody("UnknownEvent"), DEFAULT_AGGREGATE_ID),
+            Arguments.of("blank body", "", DEFAULT_AGGREGATE_ID),
+            Arguments.of("null body", null, DEFAULT_AGGREGATE_ID),
+            Arguments.of("invalid JSON", "not json {{", DEFAULT_AGGREGATE_ID),
+            Arguments.of("blank aggregate id", notificationEdited(), ""),
+            Arguments.of("null aggregate id", notificationEdited(), null));
     }
 
     @Test
@@ -126,6 +155,10 @@ class NotificationSqsListenerTest {
         listener.receive(eventBody(eventName), DEFAULT_AGGREGATE_ID, "1", null, MESSAGE_ID);
 
         assertStoredVersionOneOfTheAggregate();
+    }
+
+    private double processedCount() {
+        return registry.counter("notification.ins.sqs.messages", "outcome", "processed").count();
     }
 
     private void assertStoredVersionOneOfTheAggregate() {
