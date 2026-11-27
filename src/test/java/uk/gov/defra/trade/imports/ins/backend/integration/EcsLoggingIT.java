@@ -59,6 +59,7 @@ class EcsLoggingIT extends IntegrationBase {
           .andExpect(status().isNotFound());
 
       assertThat(requestLogLines(console))
+          .isNotEmpty()
           .allSatisfy(logJson -> assertThat(logJson.has("trace.id")).isFalse());
     }
   }
