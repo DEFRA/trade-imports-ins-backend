@@ -6,7 +6,6 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.connection.ClusterDescription;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.MongoTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -15,9 +14,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Uses Testcontainers to spin up a real MongoDB instance.
  */
 class MongoConfigIT extends IntegrationBase {
-    
-    @Autowired
-    private MongoTemplate mongoTemplate;
 
     @Autowired
     private MongoClient mongoClient;

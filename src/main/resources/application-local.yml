@@ -9,6 +9,7 @@ logging:
     org.mongodb.driver: ${LOGGING_LEVEL_ORG_MONGODB_DRIVER:WARN}
     org.springframework: ${LOGGING_LEVEL_ORG_SPRINGFRAMEWORK:INFO}
     org.springframework.web: ${LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB:INFO}
+    software.amazon.cloudwatchlogs.emf: ERROR
 
 management:
   endpoints:
@@ -18,10 +19,6 @@ management:
   endpoint:
     health:
       show-details: when-authorized
-  # Off locally: EmfMetricsPublisher has no CloudWatch to reach here, and the meters it removes
-  # after every flush would reset the counters under Prometheus each minute.
-  metrics:
-    enabled: false
   # Scraped by the workspace stack's opt-in monitoring profile (Prometheus + Grafana).
   prometheus:
     metrics:

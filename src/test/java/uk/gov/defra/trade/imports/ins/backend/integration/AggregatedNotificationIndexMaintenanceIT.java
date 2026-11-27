@@ -8,7 +8,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.Index;
 import org.springframework.data.mongodb.core.index.IndexField;
 import org.springframework.data.mongodb.core.index.IndexInfo;
@@ -18,9 +17,6 @@ import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotificatio
 import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotificationIndexMaintenance;
 
 class AggregatedNotificationIndexMaintenanceIT extends IntegrationBase {
-
-    @Autowired
-    private MongoTemplate mongoTemplate;
 
     @Autowired
     private AggregatedNotificationIndexMaintenance indexMaintenance;

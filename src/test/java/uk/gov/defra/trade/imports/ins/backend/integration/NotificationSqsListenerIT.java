@@ -12,7 +12,6 @@ import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.MongoTemplate;
 import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotification;
 import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotificationRepository;
 import uk.gov.defra.trade.imports.ins.backend.testsupport.NotificationEventEnvelope;
@@ -23,9 +22,6 @@ class NotificationSqsListenerIT extends IntegrationBase {
 
     @Autowired
     private AggregatedNotificationRepository repository;
-
-    @Autowired
-    private MongoTemplate mongoTemplate;
 
     @BeforeEach
     void setup() {

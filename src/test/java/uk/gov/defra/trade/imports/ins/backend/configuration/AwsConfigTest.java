@@ -2,10 +2,16 @@ package uk.gov.defra.trade.imports.ins.backend.configuration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
+import uk.gov.defra.trade.imports.ins.backend.metrics.ExternalCallRecorder;
+import uk.gov.defra.trade.imports.ins.backend.metrics.LastCallOutcomes;
 
 class AwsConfigTest {
+
+    private static final ExternalCallRecorder EXTERNAL_CALL_RECORDER =
+        new ExternalCallRecorder(new SimpleMeterRegistry(), new LastCallOutcomes());
 
     private static final String REGION = "eu-west-2";
     private static final String ENDPOINT = "http://localhost:4566";
@@ -18,7 +24,7 @@ class AwsConfigTest {
         AwsConfig awsConfig = new AwsConfig(REGION, new AppAwsConfig(null, null, null));
 
         // When
-        SqsAsyncClient client = awsConfig.sqsAsyncClient();
+        SqsAsyncClient client = awsConfig.sqsAsyncClient(EXTERNAL_CALL_RECORDER);
 
         // Then
         assertThat(client).isNotNull();
@@ -31,7 +37,7 @@ class AwsConfigTest {
         AwsConfig awsConfig = new AwsConfig(REGION, new AppAwsConfig(ENDPOINT, ACCESS_KEY, SECRET_KEY));
 
         // When
-        SqsAsyncClient client = awsConfig.sqsAsyncClient();
+        SqsAsyncClient client = awsConfig.sqsAsyncClient(EXTERNAL_CALL_RECORDER);
 
         // Then
         assertThat(client).isNotNull();
@@ -44,7 +50,7 @@ class AwsConfigTest {
         AwsConfig awsConfig = new AwsConfig(REGION, new AppAwsConfig(ENDPOINT, null, SECRET_KEY));
 
         // When
-        SqsAsyncClient client = awsConfig.sqsAsyncClient();
+        SqsAsyncClient client = awsConfig.sqsAsyncClient(EXTERNAL_CALL_RECORDER);
 
         // Then
         assertThat(client).isNotNull();
@@ -57,7 +63,7 @@ class AwsConfigTest {
         AwsConfig awsConfig = new AwsConfig(REGION, new AppAwsConfig(ENDPOINT, ACCESS_KEY, null));
 
         // When
-        SqsAsyncClient client = awsConfig.sqsAsyncClient();
+        SqsAsyncClient client = awsConfig.sqsAsyncClient(EXTERNAL_CALL_RECORDER);
 
         // Then
         assertThat(client).isNotNull();
@@ -70,7 +76,7 @@ class AwsConfigTest {
         AwsConfig awsConfig = new AwsConfig(REGION, new AppAwsConfig(ENDPOINT, "", SECRET_KEY));
 
         // When
-        SqsAsyncClient client = awsConfig.sqsAsyncClient();
+        SqsAsyncClient client = awsConfig.sqsAsyncClient(EXTERNAL_CALL_RECORDER);
 
         // Then
         assertThat(client).isNotNull();
@@ -83,7 +89,7 @@ class AwsConfigTest {
         AwsConfig awsConfig = new AwsConfig(REGION, new AppAwsConfig(ENDPOINT, ACCESS_KEY, ""));
 
         // When
-        SqsAsyncClient client = awsConfig.sqsAsyncClient();
+        SqsAsyncClient client = awsConfig.sqsAsyncClient(EXTERNAL_CALL_RECORDER);
 
         // Then
         assertThat(client).isNotNull();

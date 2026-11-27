@@ -7,12 +7,13 @@
     <springProperty name="service.version" source="cdp.service-version"/>
     <springProperty name="service.name" source="spring.application.name"/>
 
-    <!-- Console appender with standard ECS JSON format (flat error.* fields) -->
+    <!-- ECS JSON. CDP keeps event.* fields only when nested, so EcsEventEncoder writes them as
+         one event object. -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <!-- Filter out /health endpoint to reduce noise -->
         <filter class="uk.gov.defra.trade.imports.ins.backend.filter.HealthCheckFilter"/>
 
-        <encoder class="co.elastic.logging.logback.EcsEncoder">
+        <encoder class="uk.gov.defra.trade.imports.ins.backend.logging.EcsEventEncoder">
             <serviceVersion>${service.version}</serviceVersion>
             <serviceName>${service.name}</serviceName>
             <!-- ECS encoder automatically includes all MDC fields -->

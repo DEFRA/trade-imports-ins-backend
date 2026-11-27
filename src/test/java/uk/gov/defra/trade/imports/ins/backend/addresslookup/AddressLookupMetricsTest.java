@@ -6,11 +6,6 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/**
- * The meters have to survive {@code EmfMetricsPublisher}, which publishes a meter's name and the
- * value of each of its measurements and nothing else. So every meter here must be a counter —
- * one measurement — and must carry its dimension in its name, or two meters collide in CloudWatch.
- */
 class AddressLookupMetricsTest {
 
     private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
@@ -55,7 +50,7 @@ class AddressLookupMetricsTest {
     }
 
     @Test
-    void everyMeterShouldBeASingleMeasurement_orTheEmfPublisherWouldCollideThem() {
+    void everyMeterShouldBeASingleMeasurement() {
         metrics.recordSearch(results(AddressLookupResponse.Mode.POSTCODE, LookupTimings.of(1000L, 800L, 2000L, 2100L)));
 
         assertThat(registry.getMeters())

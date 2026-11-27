@@ -26,7 +26,7 @@ class NotificationSqsListenerTest {
     @BeforeEach
     void setup() {
         registry = new SimpleMeterRegistry();
-        listener = new NotificationSqsListener(new ObjectMapper(), upsertService, registry);
+        listener = new NotificationSqsListener(new ObjectMapper(), upsertService, new NotificationMessageMetrics(registry));
     }
 
     @Test

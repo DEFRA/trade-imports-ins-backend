@@ -22,7 +22,7 @@ import java.io.IOException;
 public class RequestTracingFilter implements Filter {
 
     
-    private static final String MDC_TRACE_ID = "trace.id";
+    public static final String MDC_TRACE_ID = "trace.id";
     private static final String MDC_HTTP_METHOD = "http.request.method";
     private static final String MDC_HTTP_STATUS = "http.response.status_code";
     private static final String MDC_URL_FULL = "url.full";

@@ -2,30 +2,18 @@ package uk.gov.defra.trade.imports.ins.backend.notification;
 
 import io.awspring.cloud.sqs.listener.SqsHeaders;
 import io.awspring.cloud.sqs.listener.errorhandler.ErrorHandler;
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.Message;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class NotificationErrorHandler implements ErrorHandler<Object> {
 
-    private final Counter retryCounter;
-    private final Counter discardedCounter;
-
-    public NotificationErrorHandler(MeterRegistry meterRegistry) {
-        this.retryCounter = Counter.builder("notification.ins.sqs.errors")
-            .tag("action", "retry")
-            .description("Errors left for SQS retry (transient)")
-            .register(meterRegistry);
-        this.discardedCounter = Counter.builder("notification.ins.sqs.errors")
-            .tag("action", "discarded")
-            .description("Errors discarded as non-retryable (message deleted)")
-            .register(meterRegistry);
-    }
+    private final NotificationMessageMetrics messageMetrics;
 
     @Override
     public void handle(Message<Object> message, Throwable t) {
@@ -33,13 +21,13 @@ public class NotificationErrorHandler implements ErrorHandler<Object> {
         Object aggregateId = message.getHeaders().get(SqsHeaders.MessageSystemAttributes.SQS_MESSAGE_GROUP_ID_HEADER);
         UUID messageId = message.getHeaders().getId();
         if (classified instanceof SqsRetryableException retryableException) {
-            retryCounter.increment();
+            messageMetrics.recordRetried();
             log.warn("Retryable error, message left for retry: aggregateId={}, messageId={}",
                 aggregateId, messageId, t);
             throw retryableException;
         }
 
-        discardedCounter.increment();
+        messageMetrics.recordDiscarded();
         log.error("Non-retryable error, message will be deleted: aggregateId={}, messageId={}",
             aggregateId, messageId, t);
     }

@@ -13,8 +13,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.MongoTemplate;
 import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotification;
 import uk.gov.defra.trade.imports.ins.backend.notification.AggregatedNotification.AggregatedNotificationBuilder;
 
@@ -22,9 +20,6 @@ class AggregatedNotificationControllerIT extends IntegrationBase {
 
     private static final String OTHER_ORGANISATION_ID = "9999999";
     private static final Instant LAST_UPDATED = Instant.parse("2026-08-19T10:00:00Z");
-
-    @Autowired
-    private MongoTemplate mongoTemplate;
 
     @BeforeEach
     void setup() {

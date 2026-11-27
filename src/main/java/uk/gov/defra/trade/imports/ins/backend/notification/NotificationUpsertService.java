@@ -1,6 +1,7 @@
 package uk.gov.defra.trade.imports.ins.backend.notification;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.micrometer.core.annotation.Timed;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -24,6 +25,7 @@ public class NotificationUpsertService {
   private static final String LOCATION_FUNCTION_SUBDIVISION_OF_ORIGIN = "106";
   private final MongoTemplate mongoTemplate;
 
+    @Timed("service.upsertNotification.time")
     public void upsert(JsonNode body) {
         String aggregateId = body.path("aggregateId").asText(null);
         long incomingVersion = body.path(AGGREGATE_VERSION).asLong(-1);

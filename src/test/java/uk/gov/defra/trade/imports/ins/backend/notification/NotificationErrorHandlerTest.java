@@ -19,7 +19,7 @@ import org.springframework.messaging.support.GenericMessage;
 class NotificationErrorHandlerTest {
 
     private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
-    private final NotificationErrorHandler handler = new NotificationErrorHandler(registry);
+    private final NotificationErrorHandler handler = new NotificationErrorHandler(new NotificationMessageMetrics(registry));
 
     @Test
     void handle_logsAggregateIdMessageIdAndThrowable_whenNonRetryable() {
@@ -61,8 +61,8 @@ class NotificationErrorHandlerTest {
         // When / Then
         assertThatThrownBy(() -> handler.handle(new GenericMessage<>("body"), ex))
             .isInstanceOf(SqsRetryableException.class);
-        assertThat(registry.counter("notification.ins.sqs.errors", "action", "retry").count()).isEqualTo(1);
-        assertThat(registry.counter("notification.ins.sqs.errors", "action", "discarded").count()).isZero();
+        assertThat(registry.counter("notification.ins.sqs.messages", "outcome", "retried").count()).isEqualTo(1);
+        assertThat(registry.counter("notification.ins.sqs.messages", "outcome", "discarded").count()).isZero();
     }
 
     @Test
@@ -72,8 +72,8 @@ class NotificationErrorHandlerTest {
 
         // When / Then
         assertThatNoException().isThrownBy(() -> handler.handle(new GenericMessage<>("body"), ex));
-        assertThat(registry.counter("notification.ins.sqs.errors", "action", "discarded").count()).isEqualTo(1);
-        assertThat(registry.counter("notification.ins.sqs.errors", "action", "retry").count()).isZero();
+        assertThat(registry.counter("notification.ins.sqs.messages", "outcome", "discarded").count()).isEqualTo(1);
+        assertThat(registry.counter("notification.ins.sqs.messages", "outcome", "retried").count()).isZero();
     }
 
     @Test
@@ -85,7 +85,7 @@ class NotificationErrorHandlerTest {
         // When / Then
         assertThatThrownBy(() -> handler.handle(new GenericMessage<>("body"), wrapped))
             .isInstanceOf(SqsRetryableException.class);
-        assertThat(registry.counter("notification.ins.sqs.errors", "action", "retry").count()).isEqualTo(1);
+        assertThat(registry.counter("notification.ins.sqs.messages", "outcome", "retried").count()).isEqualTo(1);
     }
 
     @Test
@@ -95,6 +95,6 @@ class NotificationErrorHandlerTest {
 
         // When / Then
         assertThatNoException().isThrownBy(() -> handler.handle(new GenericMessage<>("body"), unknown));
-        assertThat(registry.counter("notification.ins.sqs.errors", "action", "discarded").count()).isEqualTo(1);
+        assertThat(registry.counter("notification.ins.sqs.messages", "outcome", "discarded").count()).isEqualTo(1);
     }
 }

@@ -44,9 +44,19 @@ A call can be one search or the other. A request with both answers 400 rather th
 
 - The lookup time is measured around the whole exchange. On a cold search that includes the STS and Entra hops, which Spring Security runs inside it. `LookupTimings` takes them back off, so `lookupMs` is the gateway's own time on a cold or a warm search.
 - `stsMs` and `entraMs` are null on a warm search, so a cold search and a cached one have different shapes.
-- Metrics reach CloudWatch through `EmfMetricsPublisher`, for Grafana dashboards in `Playground/trade-imports-ins-backend-monitoring`. That publisher writes a meter's name and value only: it drops tags, and publishes every measurement of a meter under the meter's name. So every metric is a counter with its dimension in its name, such as `addressLookup.outcome.results`.
-- Durations are published as running totals, because a counter survives being summed across a minute's flush and across instances. Mean lookup time is `addressLookup.durationMs.lookup` divided by `addressLookup.searches`. The publisher cannot carry a distribution, so there are no percentiles.
+- Every address lookup metric is a counter with its dimension in its name, such as `addressLookup.outcome.results`. They reach CloudWatch as every other meter does (see "Metrics and dependency call logging").
+- Durations are counters too, so there are no percentiles. Mean lookup time is `addressLookup.durationMs.lookup` divided by `addressLookup.searches`.
 - Every counter is registered at zero up front. A counter created by its first increment is first scraped above zero, and a Prometheus `increase()` cannot see that first rise.
+
+## Metrics and dependency call logging
+
+- Every metric is a Micrometer meter. `EmfMeterRegistry` publishes them to CloudWatch as Embedded Metric Format once a step (`aws.emf.step`, one minute), in the `trade-imports-ins-backend` namespace, with a meter's tags as its only dimensions. A counter publishes its count for the step. A timer publishes every value recorded in the step, so CloudWatch works out the count, average, p95 and maximum.
+- `management.metrics.enable` in `application.yml` is the allowlist. A meter whose name is not on it is a no-op, with no error.
+- Every call to MongoDB and SQS is recorded as `external.call.duration` and `external.call.failure`, tagged `dependency` and `operation`. MongoDB commands are measured by the driver's command listener (`MongoCallRecorder`) and SQS calls by an AWS SDK interceptor on the client (`AwsCallRecorder`), so a call made anywhere is caught. A MongoDB duplicate key is a success: the server did what was asked.
+- Each recorded call also writes one log line, `External call <dependency>/<operation> <outcome> in <ms> ms`, with nested ECS `event.*` fields and the request's `trace.id`. CDP keeps `event.*` only when it is nested, which is why `EcsEventEncoder` replaces the stock ECS encoder.
+- `external.dependency.available` is 1 or 0 per dependency. For MongoDB it follows the driver's own server checks (`MongoAvailability`). For SQS it is the outcome of the last call, which stays fresh because the listener polls every few seconds. Neither is part of `/health`, which CDP uses to decide whether a task is alive.
+- `notification.ins.sqs.messages`, tagged `outcome`, counts each message the listener handles: `processed`, `retried` (left on the queue for another attempt) and `discarded` (deleted unprocessed). The service cannot see a message move to the dead-letter queue. SQS moves it there after the queue's maximum receive count, so dead-lettering shows in the queue's own AWS metrics.
+- `@Timed` records `controller.*`, `service.*` and `listener.notification.time` per call. It works only through the Spring proxy: on a public method called from another bean.
 
 ## Notification dates
 

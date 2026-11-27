@@ -1,5 +1,6 @@
 package uk.gov.defra.trade.imports.ins.backend.notification;
 
+import io.micrometer.core.annotation.Timed;
 import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +29,7 @@ public class AggregatedNotificationQueryService {
         this.listPageSize = listPageSize;
     }
 
+    @Timed("service.findOrganisationPage.time")
     public AggregatedNotificationPageResponse findOrganisationPage(
         int page, String sort, String referenceNumber, String organisationId) {
         Pageable pageable = PageRequest.of(page - 1, listPageSize, AggregatedNotificationSort.toSort(sort));

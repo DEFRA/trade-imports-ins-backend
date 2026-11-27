@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -48,8 +49,10 @@ abstract class IntegrationBase {
         DockerImageName.parse("floci/floci:latest"))
         .withRegion(AWS_REGION);
 
-    static final MongoDBContainer MONGO_CONTAINER = new MongoDBContainer(
-        DockerImageName.parse("mongo:7.0")).withExposedPorts(27017);
+    static final DockerImageName MONGO_IMAGE = DockerImageName.parse("mongo:7.0");
+
+    static final MongoDBContainer MONGO_CONTAINER = new MongoDBContainer(MONGO_IMAGE)
+        .withExposedPorts(27017);
 
     static final String queueUrl;
 
@@ -68,6 +71,9 @@ abstract class IntegrationBase {
 
     @Autowired
     protected MockMvc mockMvc;
+
+    @Autowired
+    protected MongoTemplate mongoTemplate;
 
     protected static MockHttpServletRequestBuilder listNotificationsFor(String organisationId) {
         return get("/notifications")

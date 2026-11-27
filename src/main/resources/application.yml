@@ -71,8 +71,10 @@ aws:
       max-messages: ${SQS_MAX_MESSAGES:10}
   emf:
     enabled: ${AWS_EMF_ENABLED:true}
-    environment: ${AWS_EMF_ENVIRONMENT:Local}
+    # Blank lets the EMF library detect the environment: ECS on CDP. Local writes to stdout.
+    environment: ${AWS_EMF_ENVIRONMENT:}
     namespace: ${AWS_EMF_NAMESPACE:trade-imports-ins-backend}
+    step: ${AWS_EMF_STEP:1m}
     service:
       name: ${AWS_EMF_SERVICE_NAME:trade-imports-ins-backend}
       type: ${AWS_EMF_SERVICE_TYPE:SpringBootApp}
@@ -117,9 +119,23 @@ management:
       enabled: false
   metrics:
     enabled: ${METRICS_ENABLED:true}
+    # A meter not listed here is a no-op: no error, nothing published. An entry enables every
+    # meter whose name starts with it, so list a custom name in full.
     enable:
       all: false
       controller: true
+      service: true
+      listener: true
+      external:
+        call:
+          duration: true
+          failure: true
+        dependency:
+          available: true
+      notification:
+        ins:
+          sqs:
+            messages: true
       "[addressLookup]": true
       jvm:
         memory:
@@ -129,12 +145,8 @@ management:
         threads:
           live: true
           peak: true
-      http:
-        server:
-          requests:
-            active: true
   # Only the local stack's opt-in monitoring profile uses Prometheus; application-local.yml
-  # turns it on. Everywhere else keeps the plain registry EmfMetricsPublisher reads.
+  # turns it on.
   prometheus:
     metrics:
       export:

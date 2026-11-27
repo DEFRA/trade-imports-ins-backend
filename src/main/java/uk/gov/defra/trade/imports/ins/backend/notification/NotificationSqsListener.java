@@ -5,33 +5,23 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import io.awspring.cloud.sqs.listener.SqsHeaders;
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.annotation.Timed;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class NotificationSqsListener {
 
     private final ObjectMapper objectMapper;
     private final NotificationUpsertService upsertService;
-    private final Counter processedCounter;
-
-    public NotificationSqsListener(
-            ObjectMapper objectMapper,
-            NotificationUpsertService upsertService,
-            MeterRegistry meterRegistry) {
-        this.objectMapper = objectMapper;
-        this.upsertService = upsertService;
-        this.processedCounter = Counter.builder("notification.ins.sqs.messages")
-            .tag("outcome", "processed")
-            .description("Messages successfully processed and upserted")
-            .register(meterRegistry);
-    }
+    private final NotificationMessageMetrics messageMetrics;
 
     @SqsListener("${aws.sqs.notification.queue-url}")
+    @Timed("listener.notification.time")
     public void receive(
             String body,
             @Header(name = SqsHeaders.MessageSystemAttributes.SQS_MESSAGE_GROUP_ID_HEADER, required = false) String aggregateId,
@@ -67,6 +57,6 @@ public class NotificationSqsListener {
 
         log.debug("Processing eventType={} aggregateId={}", resolved, aggregateId);
         upsertService.upsert(parsedBody);
-        processedCounter.increment();
+        messageMetrics.recordProcessed();
     }
 }
