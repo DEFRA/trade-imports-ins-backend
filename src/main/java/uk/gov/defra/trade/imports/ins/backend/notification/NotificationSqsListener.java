@@ -72,7 +72,9 @@ public class NotificationSqsListener {
         });
 
         log.debug("Processing eventType={} aggregateId={}", resolved, aggregateId);
-        upsertService.upsert(parsedBody);
-        messageMetrics.recordProcessed();
+        switch (upsertService.upsert(parsedBody)) {
+            case STORED -> messageMetrics.recordProcessed();
+            case SKIPPED_STALE -> messageMetrics.recordSkipped();
+        }
     }
 }

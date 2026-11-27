@@ -8,6 +8,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -25,8 +26,10 @@ public class NotificationUpsertService {
   private static final String LOCATION_FUNCTION_SUBDIVISION_OF_ORIGIN = "106";
   private final MongoTemplate mongoTemplate;
 
+    public enum Outcome { STORED, SKIPPED_STALE }
+
     @Timed("service.upsertNotification.time")
-    public void upsert(JsonNode body) {
+    public Outcome upsert(JsonNode body) {
         String aggregateId = body.path("aggregateId").asText(null);
         long incomingVersion = body.path(AGGREGATE_VERSION).asLong(-1);
 
@@ -94,9 +97,23 @@ public class NotificationUpsertService {
             Criteria.where("_id").is(aggregateId)
                 .and(AGGREGATE_VERSION).lt(incomingVersion));
 
-        mongoTemplate.upsert(query, update, AggregatedNotification.class);
+        try {
+            mongoTemplate.upsert(query, update, AggregatedNotification.class);
+        } catch (DuplicateKeyException e) {
+            log.info("Skipped stale event: aggregateId={}, aggregateVersion={}, storedAggregateVersion={}",
+                aggregateId, incomingVersion, storedVersion(aggregateId));
+            return Outcome.SKIPPED_STALE;
+        }
 
         log.info("Upserted aggregatedNotification: aggregateId={}, aggregateVersion={}", aggregateId, incomingVersion);
+        return Outcome.STORED;
+    }
+
+    private Long storedVersion(String aggregateId) {
+        Query query = Query.query(Criteria.where("_id").is(aggregateId));
+        query.fields().include(AGGREGATE_VERSION);
+        AggregatedNotification stored = mongoTemplate.findOne(query, AggregatedNotification.class);
+        return stored != null ? stored.getAggregateVersion() : null;
     }
 
     private static String resolveCommodity(

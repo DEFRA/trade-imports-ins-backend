@@ -3,8 +3,10 @@ package uk.gov.defra.trade.imports.ins.backend.notification;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -29,6 +31,7 @@ class NotificationSqsListenerTest {
     @BeforeEach
     void setup() {
         registry = new SimpleMeterRegistry();
+        lenient().when(upsertService.upsert(any())).thenReturn(NotificationUpsertService.Outcome.STORED);
         listener = new NotificationSqsListener(new ObjectMapper(), upsertService, new NotificationMessageMetrics(registry));
     }
 
@@ -37,6 +40,16 @@ class NotificationSqsListenerTest {
         listener.receive(notificationEdited(), "agg-1", "1", null, MESSAGE_ID);
         verify(upsertService).upsert(any());
         assertThat(registry.counter("notification.ins.sqs.messages", "outcome", "processed").count()).isEqualTo(1);
+    }
+
+    @Test
+    void receive_countsTheMessageAsSkipped_notProcessed_whenTheUpsertSkipsAStaleEvent() {
+        when(upsertService.upsert(any())).thenReturn(NotificationUpsertService.Outcome.SKIPPED_STALE);
+
+        listener.receive(notificationEdited(), "agg-1", "1", null, MESSAGE_ID);
+
+        assertThat(registry.counter("notification.ins.sqs.messages", "outcome", "skipped").count()).isEqualTo(1);
+        assertThat(registry.counter("notification.ins.sqs.messages", "outcome", "processed").count()).isZero();
     }
 
     @Test
