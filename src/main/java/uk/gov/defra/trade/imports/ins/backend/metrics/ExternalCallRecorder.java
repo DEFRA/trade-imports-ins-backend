@@ -24,6 +24,7 @@ import org.springframework.stereotype.Component;
 public class ExternalCallRecorder {
 
   static final String DEPENDENCY_TAG = "dependency";
+  static final String OPERATION_TAG = "operation";
 
   private final MeterRegistry meterRegistry;
   private final LastCallOutcomes lastCallOutcomes;
@@ -118,7 +119,7 @@ public class ExternalCallRecorder {
   }
 
   private static Tags tagsOf(ExternalCall call) {
-    return Tags.of(DEPENDENCY_TAG, call.dependency().tagValue(), "operation", call.operation());
+    return Tags.of(DEPENDENCY_TAG, call.dependency().tagValue(), OPERATION_TAG, call.operation());
   }
 
   private static void logCall(
