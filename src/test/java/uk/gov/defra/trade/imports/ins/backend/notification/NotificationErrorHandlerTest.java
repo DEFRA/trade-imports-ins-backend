@@ -3,6 +3,7 @@ package uk.gov.defra.trade.imports.ins.backend.notification;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -61,6 +62,17 @@ class NotificationErrorHandlerTest {
         // When / Then
         assertThatThrownBy(() -> handler.handle(new GenericMessage<>("body"), ex))
             .isInstanceOf(SqsRetryableException.class);
+    }
+
+    @Test
+    void handle_countsRetriedAndNotDiscarded_whenRetryable() {
+        // Given
+        var ex = new SqsRetryableException("transient");
+
+        // When
+        catchThrowable(() -> handler.handle(new GenericMessage<>("body"), ex));
+
+        // Then
         assertThat(registry.counter("notification.ins.sqs.messages", "outcome", "retried").count()).isEqualTo(1);
         assertThat(registry.counter("notification.ins.sqs.messages", "outcome", "discarded").count()).isZero();
     }
@@ -72,6 +84,17 @@ class NotificationErrorHandlerTest {
 
         // When / Then
         assertThatNoException().isThrownBy(() -> handler.handle(new GenericMessage<>("body"), ex));
+    }
+
+    @Test
+    void handle_countsDiscardedAndNotRetried_whenNonRetryable() {
+        // Given
+        var ex = new SqsNonRetryableException("poison");
+
+        // When
+        handler.handle(new GenericMessage<>("body"), ex);
+
+        // Then
         assertThat(registry.counter("notification.ins.sqs.messages", "outcome", "discarded").count()).isEqualTo(1);
         assertThat(registry.counter("notification.ins.sqs.messages", "outcome", "retried").count()).isZero();
     }
@@ -85,6 +108,18 @@ class NotificationErrorHandlerTest {
         // When / Then
         assertThatThrownBy(() -> handler.handle(new GenericMessage<>("body"), wrapped))
             .isInstanceOf(SqsRetryableException.class);
+    }
+
+    @Test
+    void handle_countsRetried_whenClassifiedCauseIsNested() {
+        // Given
+        var root = new SqsRetryableException("root");
+        var wrapped = new RuntimeException("outer", new RuntimeException("middle", root));
+
+        // When
+        catchThrowable(() -> handler.handle(new GenericMessage<>("body"), wrapped));
+
+        // Then
         assertThat(registry.counter("notification.ins.sqs.messages", "outcome", "retried").count()).isEqualTo(1);
     }
 
@@ -95,6 +130,17 @@ class NotificationErrorHandlerTest {
 
         // When / Then
         assertThatNoException().isThrownBy(() -> handler.handle(new GenericMessage<>("body"), unknown));
+    }
+
+    @Test
+    void handle_countsDiscarded_whenUnclassified() {
+        // Given
+        var unknown = new IllegalStateException("unexpected");
+
+        // When
+        handler.handle(new GenericMessage<>("body"), unknown);
+
+        // Then
         assertThat(registry.counter("notification.ins.sqs.messages", "outcome", "discarded").count()).isEqualTo(1);
     }
 }
