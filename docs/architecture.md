@@ -46,7 +46,7 @@ A call can be one search or the other. A request with both answers 400 rather th
 - `stsMs` and `entraMs` are null on a warm search, so a cold search and a cached one have different shapes.
 - Every address lookup metric is a counter with its dimension in its name, such as `addressLookup.outcome.results`. They reach CloudWatch as every other meter does (see "Metrics and dependency call logging").
 - Durations are counters too, so there are no percentiles. Mean lookup time is `addressLookup.durationMs.lookup` divided by `addressLookup.searches`.
-- Every counter is registered at zero up front. A counter created by its first increment is first scraped above zero, and a Prometheus `increase()` cannot see that first rise.
+- Every counter is registered at zero up front. `EmfMeterRegistry` publishes every registered counter each step, zero included, so CloudWatch has a datapoint for every mode, outcome and failure reason from start-up, even one no search has reached yet.
 
 ## Metrics and dependency call logging
 

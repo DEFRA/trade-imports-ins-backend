@@ -12,7 +12,7 @@ class AddressLookupMetricsTest {
     private final AddressLookupMetrics metrics = new AddressLookupMetrics(registry);
 
     @Test
-    void constructor_shouldCreateEveryCounterAtZero_soTheFirstSearchIsNotLostToAScrape() {
+    void constructor_shouldCreateEveryCounterAtZero() {
         assertThat(registry.find("addressLookup.searches").counter().count()).isZero();
         assertThat(registry.find("addressLookup.mode.find").counter().count()).isZero();
         assertThat(registry.find("addressLookup.outcome.no_results").counter().count()).isZero();
@@ -30,7 +30,7 @@ class AddressLookupMetricsTest {
     }
 
     @Test
-    void recordSearch_shouldNameTheFailureReason_soEachIsItsOwnMetric() {
+    void recordSearch_shouldCountTheFailureReason() {
         metrics.recordSearch(AddressLookupResponse
             .failed(query(AddressLookupResponse.Mode.POSTCODE), AddressLookupResponse.FailureReason.HTTP_503)
             .withTimings(cachedTimings()));
@@ -40,7 +40,7 @@ class AddressLookupMetricsTest {
     }
 
     @Test
-    void recordSearch_shouldAccumulateDurations_soTheDashboardCanDivideForAMean() {
+    void recordSearch_shouldAddEachSearchsDurationsToTheirCounters() {
         metrics.recordSearch(results(AddressLookupResponse.Mode.POSTCODE, cachedTimings()));
         metrics.recordSearch(results(AddressLookupResponse.Mode.POSTCODE, cachedTimings()));
 
