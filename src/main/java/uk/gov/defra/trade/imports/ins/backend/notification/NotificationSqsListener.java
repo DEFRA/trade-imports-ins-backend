@@ -63,13 +63,8 @@ public class NotificationSqsListener {
         }
 
         String eventType = parsedBody.path("eventType").asText();
-        OutboxEventType resolved = OutboxEventType.fromWireValue(eventType).orElseThrow(() -> {
-            // An unrecognised type means the store is about to diverge — dead-letter with context
-            // rather than silently acknowledge.
-            log.error("Unrecognised eventType={} aggregateId={} — dead-lettering", eventType, aggregateId);
-            return new SqsNonRetryableException(
-                "Unrecognised eventType=" + eventType + " for aggregateId=" + aggregateId);
-        });
+        OutboxEventType resolved = OutboxEventType.fromWireValue(eventType).orElseThrow(() ->
+            new SqsNonRetryableException("Unrecognised eventType=" + eventType + " for aggregateId=" + aggregateId));
 
         log.debug("Processing eventType={} aggregateId={}", resolved, aggregateId);
         switch (upsertService.upsert(parsedBody)) {
