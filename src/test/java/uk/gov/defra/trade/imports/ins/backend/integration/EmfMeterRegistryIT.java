@@ -108,7 +108,7 @@ class EmfMeterRegistryIT extends IntegrationBase {
         "mongodb.driver.commands",
         "spring.data.repository.invocations",
         "http.server.requests.active",
-        "notification.ins.sqs.errors"
+        "unlisted.meter"
       })
   void allowlist_shouldNotRegisterAMeter_whenItsNameIsNotListed(String name) {
     meterRegistry.counter(name).increment();
