@@ -113,7 +113,7 @@ public class EmfMeterRegistry extends StepMeterRegistry {
   protected void publish() {
     for (Meter meter : getMeters()) {
       try {
-        publishReadings(meter, readingsOf(meter));
+        publishReadings(meter, takeReadings(meter));
       } catch (RuntimeException e) {
         log.warn("Could not publish meter {}", meter.getId(), e);
       }
@@ -124,7 +124,7 @@ public class EmfMeterRegistry extends StepMeterRegistry {
     static final Readings NONE = new Readings(List.of(), Unit.NONE);
   }
 
-  private Readings readingsOf(Meter meter) {
+  private Readings takeReadings(Meter meter) {
     return switch (meter) {
       case ValueRecordingTimer timer ->
           new Readings(timer.recordedValues().takeAll(), unitOf(getBaseTimeUnit()));
