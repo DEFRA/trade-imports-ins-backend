@@ -4,19 +4,23 @@ import com.mongodb.ReadPreference;
 import com.mongodb.WriteConcern;
 import com.mongodb.client.MongoClient;
 import com.mongodb.connection.ClusterDescription;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Integration tests for MongoDB configuration.
- * Uses Testcontainers to spin up a real MongoDB instance.
- */
 class MongoConfigIT extends IntegrationBase {
+
+    private static final String SCRATCH_COLLECTION = "test-collection";
 
     @Autowired
     private MongoClient mongoClient;
+
+    @AfterEach
+    void dropScratchCollection() {
+        mongoTemplate.dropCollection(SCRATCH_COLLECTION);
+    }
 
     @Test
     void mongoTemplate_shouldBeConfigured() {
@@ -29,7 +33,6 @@ class MongoConfigIT extends IntegrationBase {
     void mongoClient_shouldBeConnected() {
         assertThat(mongoClient).isNotNull();
 
-        // Verify connection by getting cluster description
         ClusterDescription clusterDescription = mongoClient.getClusterDescription();
         assertThat(clusterDescription).isNotNull();
         assertThat(clusterDescription.getServerDescriptions()).isNotEmpty();
@@ -45,32 +48,22 @@ class MongoConfigIT extends IntegrationBase {
     void mongoClient_shouldHaveCorrectWriteConcern() {
         WriteConcern writeConcern = mongoClient.getDatabase("test").getWriteConcern();
         assertThat(writeConcern).isNotNull();
-        // Majority write concern
         assertThat(writeConcern.getWObject()).isEqualTo("majority");
     }
 
     @Test
     void mongoTemplate_shouldPerformBasicOperations() {
-        // Create a test document
         TestDocument testDoc = new TestDocument("test-id", "Test Name");
 
-        // Insert
-        TestDocument savedDoc = mongoTemplate.insert(testDoc, "test-collection");
+        TestDocument savedDoc = mongoTemplate.insert(testDoc, SCRATCH_COLLECTION);
         assertThat(savedDoc).isNotNull();
         assertThat(savedDoc.getId()).isEqualTo("test-id");
 
-        // Find
-        TestDocument foundDoc = mongoTemplate.findById("test-id", TestDocument.class, "test-collection");
+        TestDocument foundDoc = mongoTemplate.findById("test-id", TestDocument.class, SCRATCH_COLLECTION);
         assertThat(foundDoc).isNotNull();
         assertThat(foundDoc.getName()).isEqualTo("Test Name");
-
-        // Clean up
-        mongoTemplate.dropCollection("test-collection");
     }
 
-    /**
-     * Simple test document for MongoDB operations.
-     */
     static class TestDocument {
         private String id;
         private String name;
