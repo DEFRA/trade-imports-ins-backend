@@ -118,7 +118,6 @@ management:
     mongo:
       enabled: false
   metrics:
-    enabled: ${METRICS_ENABLED:true}
     # A meter not listed here is a no-op: no error, nothing published. An entry enables every
     # meter whose name starts with it, so list a custom name in full.
     enable:
