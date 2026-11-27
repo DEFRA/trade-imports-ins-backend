@@ -12,7 +12,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-/** Serves {@code GET /notifications} for the unified dashboard. */
 @Slf4j
 @Service
 public class AggregatedNotificationQueryService {
