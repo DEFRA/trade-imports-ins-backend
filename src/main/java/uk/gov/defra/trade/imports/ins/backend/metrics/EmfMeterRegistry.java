@@ -40,7 +40,7 @@ public class EmfMeterRegistry extends StepMeterRegistry {
 
   private final Duration step;
   private final String namespace;
-  private final Supplier<MetricsLogger> metricsLoggers;
+  private final Supplier<MetricsLogger> newMetricsLogger;
 
   /**
    * Creates the registry. It publishes nothing until {@link #start} is called.
@@ -48,14 +48,14 @@ public class EmfMeterRegistry extends StepMeterRegistry {
    * @param namespace the CloudWatch namespace
    * @param step how often the registry publishes
    * @param clock the clock the meters step by
-   * @param metricsLoggers supplies a fresh logger for each meter published
+   * @param newMetricsLogger makes a new logger for each meter published
    */
   public EmfMeterRegistry(
-      String namespace, Duration step, Clock clock, Supplier<MetricsLogger> metricsLoggers) {
+      String namespace, Duration step, Clock clock, Supplier<MetricsLogger> newMetricsLogger) {
     super(stepRegistryConfig(step), clock);
     this.step = step;
     this.namespace = namespace;
-    this.metricsLoggers = metricsLoggers;
+    this.newMetricsLogger = newMetricsLogger;
   }
 
   private static StepRegistryConfig stepRegistryConfig(Duration step) {
@@ -161,7 +161,7 @@ public class EmfMeterRegistry extends StepMeterRegistry {
     if (readings.values().isEmpty()) {
       return;
     }
-    MetricsLogger metricsLogger = metricsLoggers.get();
+    MetricsLogger metricsLogger = newMetricsLogger.get();
     metricsLogger.setNamespace(namespace);
     metricsLogger.setDimensions(false, dimensionsOf(meter.getId()));
     String name = meter.getId().getName();
