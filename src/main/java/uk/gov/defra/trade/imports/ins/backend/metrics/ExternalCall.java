@@ -7,7 +7,7 @@ import java.util.Set;
  * One call to a system the service depends on.
  *
  * @param dependency the system called
- * @param operation the operation on that system, for example {@code get-object}
+ * @param operation the operation on that system, for example {@code receive-message}
  */
 public record ExternalCall(Dependency dependency, String operation) {
 
