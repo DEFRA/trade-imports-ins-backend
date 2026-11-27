@@ -4,16 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static uk.gov.defra.trade.imports.ins.backend.testsupport.CapturedLogs.loggedBy;
 
-import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
 import io.awspring.cloud.sqs.listener.SqsHeaders;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import org.slf4j.LoggerFactory;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.support.GenericMessage;
 
@@ -28,7 +26,7 @@ class NotificationErrorHandlerTest {
             Map.of(SqsHeaders.MessageSystemAttributes.SQS_MESSAGE_GROUP_ID_HEADER, "agg-1"));
         var ex = new SqsNonRetryableException("poison");
 
-        List<ILoggingEvent> events = logEventsWhileHandling(message, ex);
+        List<ILoggingEvent> events = loggedBy(NotificationErrorHandler.class, () -> handler.handle(message, ex));
 
         assertThat(events).singleElement().satisfies(event -> {
             assertThat(event.getFormattedMessage())
@@ -106,18 +104,5 @@ class NotificationErrorHandlerTest {
         handler.handle(new GenericMessage<>("body"), unknown);
 
         assertThat(registry.counter("notification.ins.sqs.messages", "outcome", "discarded").count()).isEqualTo(1);
-    }
-
-    private List<ILoggingEvent> logEventsWhileHandling(Message<Object> message, Throwable ex) {
-        Logger logger = (Logger) LoggerFactory.getLogger(NotificationErrorHandler.class);
-        ListAppender<ILoggingEvent> appender = new ListAppender<>();
-        appender.start();
-        logger.addAppender(appender);
-        try {
-            handler.handle(message, ex);
-        } finally {
-            logger.detachAppender(appender);
-        }
-        return appender.list;
     }
 }
