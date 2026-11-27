@@ -144,8 +144,7 @@ management:
         threads:
           live: true
           peak: true
-  # Only the local stack's opt-in monitoring profile uses Prometheus; application-local.yml
-  # turns it on.
+  # Metrics reach CloudWatch as EMF, so Prometheus stays off.
   prometheus:
     metrics:
       export:

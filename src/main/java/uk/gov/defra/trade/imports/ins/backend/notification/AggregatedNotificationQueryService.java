@@ -36,7 +36,7 @@ public class AggregatedNotificationQueryService {
         String trimmedReference = StringUtils.trimToNull(referenceNumber);
         if (trimmedReference != null) {
             log.debug(
-                "Fetching notification by reference {} for dashboard organisationId={}",
+                "Fetching notification by reference {} organisationId={}",
                 trimmedReference,
                 organisationId);
             Optional<AggregatedNotification> match =

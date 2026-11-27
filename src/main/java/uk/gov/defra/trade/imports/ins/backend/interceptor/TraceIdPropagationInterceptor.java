@@ -12,15 +12,8 @@ import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.stereotype.Component;
 
 /**
- * HTTP client interceptor that propagates the x-cdp-request-id trace header to all outbound HTTP
- * requests.
- *
- * <p>This interceptor retrieves the trace ID from the SLF4J MDC context (set by
- * RequestTracingFilter) and adds it as the x-cdp-request-id header to every outbound HTTP call made
- * via RestClient or RestTemplate.
- *
- * <p>CDP Requirement: All outbound HTTP calls must include the x-cdp-request-id header for
- * distributed tracing across service boundaries.
+ * Sets the configured trace header on each outbound request to the current {@code trace.id}, when
+ * there is one.
  */
 @Component
 public class TraceIdPropagationInterceptor implements ClientHttpRequestInterceptor {
