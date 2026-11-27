@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
 import uk.gov.defra.trade.imports.ins.backend.metrics.ExternalCallRecorder;
 import uk.gov.defra.trade.imports.ins.backend.metrics.LastCallOutcomes;
@@ -41,6 +44,12 @@ class AwsConfigTest {
 
         // Then
         assertThat(client).isNotNull();
+        assertThat(client.serviceClientConfiguration().credentialsProvider())
+            .isInstanceOfSatisfying(StaticCredentialsProvider.class, provider -> {
+                AwsCredentials credentials = provider.resolveCredentials();
+                assertThat(credentials.accessKeyId()).isEqualTo(ACCESS_KEY);
+                assertThat(credentials.secretAccessKey()).isEqualTo(SECRET_KEY);
+            });
         client.close();
     }
 
@@ -54,6 +63,8 @@ class AwsConfigTest {
 
         // Then
         assertThat(client).isNotNull();
+        assertThat(client.serviceClientConfiguration().credentialsProvider())
+            .isInstanceOf(DefaultCredentialsProvider.class);
         client.close();
     }
 
@@ -67,6 +78,8 @@ class AwsConfigTest {
 
         // Then
         assertThat(client).isNotNull();
+        assertThat(client.serviceClientConfiguration().credentialsProvider())
+            .isInstanceOf(DefaultCredentialsProvider.class);
         client.close();
     }
 
@@ -80,6 +93,8 @@ class AwsConfigTest {
 
         // Then
         assertThat(client).isNotNull();
+        assertThat(client.serviceClientConfiguration().credentialsProvider())
+            .isInstanceOf(DefaultCredentialsProvider.class);
         client.close();
     }
 
@@ -93,6 +108,8 @@ class AwsConfigTest {
 
         // Then
         assertThat(client).isNotNull();
+        assertThat(client.serviceClientConfiguration().credentialsProvider())
+            .isInstanceOf(DefaultCredentialsProvider.class);
         client.close();
     }
 }
