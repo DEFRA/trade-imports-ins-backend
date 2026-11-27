@@ -60,6 +60,16 @@ class ExternalCallRecorderTest {
   }
 
   @Test
+  void recordUntimedFailure_shouldRecordAFailureWithNoDurationAndTheDependencyAsUnavailable() {
+    recorder.recordUntimedFailure(SQS_RECEIVE_MESSAGE, new IllegalStateException());
+
+    assertThat(failureTotal(meterRegistry, SQS_RECEIVE_MESSAGE)).isEqualTo(1);
+    assertThat(durationSampleCount(meterRegistry, SQS_RECEIVE_MESSAGE)).isZero();
+    assertThat(lastCallOutcomes.lastCallAvailability(Dependency.SQS))
+        .isEqualTo(Availability.UNAVAILABLE);
+  }
+
+  @Test
   void recordSuccess_shouldLogOneInfoLineWithTheEventFieldsAndANanosecondDuration() {
     List<ILoggingEvent> lines =
         loggedBy(
