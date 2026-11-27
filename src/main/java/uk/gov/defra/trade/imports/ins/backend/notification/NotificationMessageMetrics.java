@@ -4,12 +4,6 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Component;
 
-/**
- * Counts each notification message the queue listener handles as {@code
- * notification.ins.sqs.messages}, tagged {@code outcome}: {@code processed} once it is stored,
- * {@code retried} when it is left on the queue for another attempt, and {@code discarded} when it
- * is deleted unprocessed.
- */
 @Component
 public class NotificationMessageMetrics {
 
