@@ -10,9 +10,9 @@ import software.amazon.awssdk.core.interceptor.SdkExecutionAttribute;
 
 /**
  * Records every call an AWS SDK client makes as one external call to its dependency, its retries
- * counted in its duration, named after its SDK action in kebab case ({@code Publish} as {@code
- * publish}), or {@code other} for an action outside the given set. A failed call with no recorded
- * start time is recorded with no duration.
+ * counted in its duration, named after its SDK action in kebab case ({@code ReceiveMessage} as
+ * {@code receive-message}), or {@code other} for an action outside the given set. A failed call
+ * with no recorded start time is recorded with no duration.
  */
 public class AwsCallRecorder implements ExecutionInterceptor {
 
