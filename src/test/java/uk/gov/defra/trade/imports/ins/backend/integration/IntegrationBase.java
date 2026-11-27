@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import uk.gov.defra.trade.imports.ins.backend.filter.TraderOrganisationHeaderFilter;
+import uk.gov.defra.trade.imports.ins.backend.notification.NotificationSqsListener;
 import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.lifecycle.Startables;
 import org.testcontainers.utility.DockerImageName;
@@ -30,6 +31,7 @@ import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.CreateQueueRequest;
 import software.amazon.awssdk.services.sqs.model.GetQueueAttributesRequest;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
+import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.PurgeQueueInProgressException;
 import software.amazon.awssdk.services.sqs.model.PurgeQueueRequest;
 import software.amazon.awssdk.services.sqs.model.QueueAttributeName;
@@ -91,14 +93,27 @@ abstract class IntegrationBase {
         registry.add("app.aws.secret-access-key", FLOCI::getSecretKey);
     }
 
-    protected static void sendToSqs(String body, String messageGroupId) {
+    protected static String sendToSqs(String body, String messageGroupId) {
+        return sendToSqs(body, messageGroupId, Map.of());
+    }
+
+    protected static String sendToSqs(String body, String messageGroupId, String correlationId) {
+        return sendToSqs(body, messageGroupId, Map.of(
+            NotificationSqsListener.CORRELATION_ID_ATTRIBUTE,
+            MessageAttributeValue.builder().dataType("String").stringValue(correlationId).build()));
+    }
+
+    private static String sendToSqs(
+        String body, String messageGroupId, Map<String, MessageAttributeValue> messageAttributes) {
         try (SqsClient sqs = localSqsClient()) {
-            sqs.sendMessage(SendMessageRequest.builder()
+            return sqs.sendMessage(SendMessageRequest.builder()
                 .queueUrl(queueUrl)
                 .messageBody(body)
                 .messageGroupId(messageGroupId)
                 .messageDeduplicationId(java.util.UUID.randomUUID().toString())
-                .build());
+                .messageAttributes(messageAttributes)
+                .build())
+                .messageId();
         }
     }
 

@@ -16,6 +16,7 @@ import static uk.gov.defra.trade.imports.ins.backend.testsupport.ExternalCallMet
 import com.fasterxml.jackson.databind.JsonNode;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
+import java.util.UUID;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.AfterEach;
@@ -32,6 +33,7 @@ class ExternalCallRecorderIT extends IntegrationBase {
 
   private static final String SCRATCH_COLLECTION = "external_call_recorder_it";
   private static final String AGGREGATE_ID = "Imports.Notification.GBN-AG.GBN-AG-26-901";
+  private static final String QUEUED_AGGREGATE_ID = "Imports.Notification.GBN-AG.GBN-AG-26-902";
 
   @Autowired private MeterRegistry meterRegistry;
   @Autowired private NotificationSqsListener notificationSqsListener;
@@ -58,7 +60,9 @@ class ExternalCallRecorderIT extends IntegrationBase {
         NotificationEventEnvelope.withData(
             AGGREGATE_ID, 1, ORGANISATION_ID, NotificationEventEnvelope.NOTIFICATION_EDITED, "{}"),
         AGGREGATE_ID,
-        "1");
+        "1",
+        null,
+        UUID.randomUUID());
 
     assertThat(durationSampleCount(meterRegistry, MONGODB_UPDATE)).isGreaterThan(before);
   }
@@ -118,6 +122,26 @@ class ExternalCallRecorderIT extends IntegrationBase {
   }
 
   @Test
+  void queueMessage_shouldWriteTheUpsertCallLineWithTheCorrelationIdAsTheTraceId() {
+    CapturedConsole console = captureSystemOut();
+    try (console) {
+      sendToSqs(queuedNotificationEdited(), QUEUED_AGGREGATE_ID, "trace-from-the-producer");
+
+      awaitCallLine("mongodb/update", "trace-from-the-producer", console);
+    }
+  }
+
+  @Test
+  void queueMessage_shouldWriteTheUpsertCallLineWithTheMessageIdAsTheTraceId_whenItHasNoCorrelationId() {
+    CapturedConsole console = captureSystemOut();
+    try (console) {
+      String messageId = sendToSqs(queuedNotificationEdited(), QUEUED_AGGREGATE_ID);
+
+      awaitCallLine("mongodb/update", messageId, console);
+    }
+  }
+
+  @Test
   void find_shouldWriteAFailedCallLineWithNoStackTrace_whenTheCommandFails() {
     CapturedConsole console = captureSystemOut();
     try (console) {
@@ -136,6 +160,28 @@ class ExternalCallRecorderIT extends IntegrationBase {
   private void runFailingFind() {
     mongoTemplate.executeCommand(
         "{find: '" + SCRATCH_COLLECTION + "', filter: {$notAnOperator: 1}}");
+  }
+
+  private static String queuedNotificationEdited() {
+    return NotificationEventEnvelope.withData(
+        QUEUED_AGGREGATE_ID,
+        1,
+        ORGANISATION_ID,
+        NotificationEventEnvelope.NOTIFICATION_EDITED,
+        "{}");
+  }
+
+  private static void awaitCallLine(String action, String traceId, CapturedConsole console) {
+    await()
+        .atMost(Duration.ofSeconds(30))
+        .untilAsserted(
+            () ->
+                assertThat(console.jsonLines())
+                    .anySatisfy(
+                        line -> {
+                          assertThat(line.path("event").path("action").asText()).isEqualTo(action);
+                          assertThat(line.path("trace.id").asText()).isEqualTo(traceId);
+                        }));
   }
 
   private static JsonNode consoleLineWithAction(String action, CapturedConsole console) {

@@ -6,15 +6,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import io.awspring.cloud.sqs.listener.SqsHeaders;
 import io.micrometer.core.annotation.Timed;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
+import uk.gov.defra.trade.imports.ins.backend.logging.TraceContext;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class NotificationSqsListener {
+
+    public static final String CORRELATION_ID_ATTRIBUTE = "correlationId";
 
     private final ObjectMapper objectMapper;
     private final NotificationUpsertService upsertService;
@@ -26,8 +31,19 @@ public class NotificationSqsListener {
             String body,
             @Header(name = SqsHeaders.MessageSystemAttributes.SQS_MESSAGE_GROUP_ID_HEADER, required = false) String aggregateId,
             @Header(name = SqsHeaders.MessageSystemAttributes.SQS_APPROXIMATE_RECEIVE_COUNT,
-                required = false) String receiveCount) {
+                required = false) String receiveCount,
+            @Header(name = CORRELATION_ID_ATTRIBUTE, required = false) String correlationId,
+            @Header(MessageHeaders.ID) UUID messageId) {
 
+        TraceContext.runWithTraceId(
+            traceIdOf(correlationId, messageId), () -> handle(body, aggregateId, receiveCount));
+    }
+
+    private static String traceIdOf(String correlationId, UUID messageId) {
+        return correlationId != null && !correlationId.isBlank() ? correlationId : messageId.toString();
+    }
+
+    private void handle(String body, String aggregateId, String receiveCount) {
         log.info("Received notification event: aggregateId={}, receiveCount={}, bodyLength={}",
             aggregateId, receiveCount, body != null ? body.length() : 0);
 

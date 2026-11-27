@@ -12,6 +12,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -63,7 +64,9 @@ class EmfMeterRegistryIT extends IntegrationBase {
         NotificationEventEnvelope.withData(
             AGGREGATE_ID, 1, ORGANISATION_ID, NotificationEventEnvelope.NOTIFICATION_EDITED, "{}"),
         AGGREGATE_ID,
-        "1");
+        "1",
+        null,
+        UUID.randomUUID());
 
     for (String name :
         List.of(
