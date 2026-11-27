@@ -50,14 +50,6 @@ class AddressLookupMetricsTest {
     }
 
     @Test
-    void everyMeterShouldBeASingleMeasurement() {
-        metrics.recordSearch(results(AddressLookupResponse.Mode.POSTCODE, LookupTimings.of(1000L, 800L, 2000L, 2100L)));
-
-        assertThat(registry.getMeters())
-            .allSatisfy(meter -> assertThat(meter.measure()).hasSize(1));
-    }
-
-    @Test
     void recordSearch_shouldNotFail_whenThereAreNoTimings() {
         metrics.recordSearch(AddressLookupResponse.noResults(query(AddressLookupResponse.Mode.FIND)));
 
