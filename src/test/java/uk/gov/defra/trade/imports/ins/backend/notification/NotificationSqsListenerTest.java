@@ -128,7 +128,9 @@ class NotificationSqsListenerTest {
 
     @Test
     void receive_throwsNonRetryable_andStoresNothing_forBlankAggregateId() {
-        assertThatThrownBy(() -> listener.receive(notificationEdited(), "", "1", null, MESSAGE_ID))
+        String body = notificationEdited();
+
+        assertThatThrownBy(() -> listener.receive(body, "", "1", null, MESSAGE_ID))
             .isInstanceOf(SqsNonRetryableException.class)
             .hasMessageContaining("MESSAGE_GROUP_ID");
         verifyNoInteractions(mongoTemplate);
@@ -136,7 +138,9 @@ class NotificationSqsListenerTest {
 
     @Test
     void receive_throwsNonRetryable_andStoresNothing_forNullAggregateId() {
-        assertThatThrownBy(() -> listener.receive(notificationEdited(), null, "1", null, MESSAGE_ID))
+        String body = notificationEdited();
+
+        assertThatThrownBy(() -> listener.receive(body, null, "1", null, MESSAGE_ID))
             .isInstanceOf(SqsNonRetryableException.class)
             .hasMessageContaining("MESSAGE_GROUP_ID");
         verifyNoInteractions(mongoTemplate);

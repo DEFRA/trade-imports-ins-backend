@@ -99,7 +99,7 @@ public class NotificationUpsertService {
 
         try {
             mongoTemplate.upsert(query, update, AggregatedNotification.class);
-        } catch (DuplicateKeyException e) {
+        } catch (DuplicateKeyException _) {
             log.info("Skipped stale event: aggregateId={}, aggregateVersion={}, storedAggregateVersion={}",
                 aggregateId, incomingVersion, storedVersion(aggregateId));
             return Outcome.SKIPPED_STALE;

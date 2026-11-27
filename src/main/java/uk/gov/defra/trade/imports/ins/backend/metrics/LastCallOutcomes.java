@@ -16,14 +16,14 @@ public class LastCallOutcomes {
   private final Map<Dependency, Availability> availabilityByDependency = new ConcurrentHashMap<>();
 
   public void recordSuccess(Dependency dependency) {
-    record(dependency, Availability.AVAILABLE);
+    storeIfReadFromLastCall(dependency, Availability.AVAILABLE);
   }
 
   public void recordFailure(Dependency dependency) {
-    record(dependency, Availability.UNAVAILABLE);
+    storeIfReadFromLastCall(dependency, Availability.UNAVAILABLE);
   }
 
-  private void record(Dependency dependency, Availability availability) {
+  private void storeIfReadFromLastCall(Dependency dependency, Availability availability) {
     if (dependency.availabilitySource() == Dependency.AvailabilitySource.LAST_CALL) {
       availabilityByDependency.put(dependency, availability);
     }
