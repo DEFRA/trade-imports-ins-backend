@@ -12,8 +12,6 @@ public final class ExternalCallMeters {
 
   public static final ExternalCall SQS_RECEIVE_MESSAGE =
       new ExternalCall(Dependency.SQS, "receive-message");
-  public static final ExternalCall SQS_DELETE_MESSAGE =
-      new ExternalCall(Dependency.SQS, "delete-message");
   public static final ExternalCall MONGODB_INSERT = new ExternalCall(Dependency.MONGODB, "insert");
   public static final ExternalCall MONGODB_FIND = new ExternalCall(Dependency.MONGODB, "find");
   public static final ExternalCall MONGODB_UPDATE = new ExternalCall(Dependency.MONGODB, "update");
