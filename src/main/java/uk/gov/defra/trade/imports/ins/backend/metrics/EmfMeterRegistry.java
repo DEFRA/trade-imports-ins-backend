@@ -129,7 +129,7 @@ public class EmfMeterRegistry extends StepMeterRegistry {
       case ValueRecordingTimer timer ->
           new Readings(timer.recordedValues().takeAll(), unitOf(getBaseTimeUnit()));
       case ValueRecordingDistributionSummary summary ->
-          new Readings(summary.recordedAmounts().takeAll(), unitOf(summary.getId(), Unit.COUNT));
+          new Readings(summary.recordedValues().takeAll(), unitOf(summary.getId(), Unit.COUNT));
       case Counter counter -> new Readings(List.of(counter.count()), Unit.COUNT);
       case TimeGauge _ -> Readings.NONE;
       case Gauge gauge -> new Readings(finiteValueOf(gauge), unitOf(gauge.getId(), Unit.NONE));

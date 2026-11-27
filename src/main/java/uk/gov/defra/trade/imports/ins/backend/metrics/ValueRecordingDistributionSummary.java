@@ -7,7 +7,7 @@ import io.micrometer.core.instrument.step.StepDistributionSummary;
 @SuppressWarnings("java:S2160")
 class ValueRecordingDistributionSummary extends StepDistributionSummary {
 
-  private final RecordedValues recordedAmounts = new RecordedValues();
+  private final RecordedValues recordedValues = new RecordedValues();
 
   ValueRecordingDistributionSummary(
       Id id,
@@ -21,10 +21,10 @@ class ValueRecordingDistributionSummary extends StepDistributionSummary {
   @Override
   protected void recordNonNegative(double amount) {
     super.recordNonNegative(amount);
-    recordedAmounts.add(amount);
+    recordedValues.add(amount);
   }
 
-  RecordedValues recordedAmounts() {
-    return recordedAmounts;
+  RecordedValues recordedValues() {
+    return recordedValues;
   }
 }
