@@ -36,11 +36,9 @@ class MongoConfigIT extends IntegrationBase {
     }
 
     @Test
-    void mongoClient_shouldHaveCorrectReadPreference() {
-        // In test environment, read preference might default to primary
-        // In production with replicas, it would use secondary
+    void mongoClient_shouldReadFromSecondary() {
         ReadPreference readPreference = mongoClient.getDatabase("test").getReadPreference();
-        assertThat(readPreference).isNotNull();
+        assertThat(readPreference).isEqualTo(ReadPreference.secondary());
     }
 
     @Test
