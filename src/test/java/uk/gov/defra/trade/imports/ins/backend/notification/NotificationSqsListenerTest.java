@@ -4,11 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static uk.gov.defra.trade.imports.ins.backend.testsupport.NotificationEventEnvelope.DEFAULT_AGGREGATE_ID;
 import static uk.gov.defra.trade.imports.ins.backend.testsupport.NotificationEventEnvelope.DEFAULT_ORGANISATION_ID;
+import static uk.gov.defra.trade.imports.ins.backend.testsupport.UpsertedDocuments.lastUpsertUpdateDocument;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -22,7 +22,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
@@ -162,9 +161,7 @@ class NotificationSqsListenerTest {
     }
 
     private void assertStoredVersionOneOfTheAggregate() {
-        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
-        Document stored = updateCaptor.getValue().getUpdateObject();
+        Document stored = lastUpsertUpdateDocument(mongoTemplate);
         assertThat(stored.get("$setOnInsert", Document.class)).containsEntry("_id", DEFAULT_AGGREGATE_ID);
         assertThat(stored.get("$set", Document.class))
             .containsEntry("aggregateVersion", 1L)

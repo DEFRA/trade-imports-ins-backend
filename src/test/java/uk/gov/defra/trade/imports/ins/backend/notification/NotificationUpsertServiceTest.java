@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static uk.gov.defra.trade.imports.ins.backend.testsupport.JvmDefaultZoneExtension.EAST_OF_UTC;
 import static uk.gov.defra.trade.imports.ins.backend.testsupport.JvmDefaultZoneExtension.WEST_OF_UTC;
+import static uk.gov.defra.trade.imports.ins.backend.testsupport.UpsertedDocuments.lastUpsertUpdateDocument;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -62,7 +63,7 @@ class NotificationUpsertServiceTest {
         Document versionFilter = queryDoc.get("aggregateVersion", Document.class);
         assertThat(versionFilter).containsEntry("$lt", 3L);
 
-        Document updateDoc = lastUpsertUpdateDocument();
+        Document updateDoc = lastUpsertUpdateDocument(mongoTemplate);
         Document setOnInsert = updateDoc.get("$setOnInsert", Document.class);
         assertThat(setOnInsert).containsEntry("_id", "agg-1");
         Document setFields = updateDoc.get("$set", Document.class);
@@ -261,17 +262,11 @@ class NotificationUpsertServiceTest {
     }
 
     private Document upsertedSetFields() {
-        return lastUpsertUpdateDocument().get("$set", Document.class);
+        return lastUpsertUpdateDocument(mongoTemplate).get("$set", Document.class);
     }
 
     private Document upsertedUnsetFields() {
-        return lastUpsertUpdateDocument().get("$unset", Document.class);
-    }
-
-    private Document lastUpsertUpdateDocument() {
-        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
-        verify(mongoTemplate).upsert(any(Query.class), updateCaptor.capture(), eq(AggregatedNotification.class));
-        return updateCaptor.getValue().getUpdateObject();
+        return lastUpsertUpdateDocument(mongoTemplate).get("$unset", Document.class);
     }
 
     private static String eventFromTheCanaryIslandsWithAnotherSubDivisionListedFirst() {
